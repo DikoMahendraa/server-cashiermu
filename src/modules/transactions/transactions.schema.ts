@@ -8,12 +8,20 @@ const selectedVariantSchema = z.object({
   priceModifier: z.coerce.number(),
 });
 
+const itemDiscountSchema = z.object({
+  type:  z.enum(['percent', 'nominal']),
+  value: z.coerce.number().min(0),
+  label: z.string().default(''),
+}).nullable().optional();
+
 const transactionItemSchema = z.object({
-  productId: z.string().uuid(),
-  quantity: z.coerce.number().int().positive(),
-  unitPrice: z.coerce.number().min(0),
+  productId:        z.string().uuid(),
+  quantity:         z.coerce.number().int().positive(),
+  unitPrice:        z.coerce.number().min(0),
+  subtotal:         z.coerce.number().min(0).optional(),
   selectedVariants: z.array(selectedVariantSchema).default([]),
-  note: z.string().default(''),
+  note:             z.string().default(''),
+  itemDiscount:     itemDiscountSchema,
 });
 
 const discountSchema = z.object({

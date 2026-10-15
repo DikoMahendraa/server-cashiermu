@@ -46,16 +46,21 @@ export const deleteCategory = async (req: Request, res: Response, next: NextFunc
     const productCount = await prisma.product.count({ where: { categoryId: id, storeId } });
 
     if (productCount > 0) {
-      // Cari kategori "Lainnya" sebagai fallback (bukan kategori yang sedang dihapus)
       const fallback = await prisma.category.findFirst({
         where: { storeId, name: 'Lainnya', NOT: { id } },
         select: { id: true },
       });
 
+      if (!fallback) {
+        res.status(400).json({
+          message: `Kategori ini memiliki ${productCount} produk. Pindahkan produk ke kategori lain atau buat kategori "Lainnya" terlebih dahulu.`,
+        });
+        return;
+      }
+
       await prisma.product.updateMany({
         where: { categoryId: id, storeId },
-        // Jika "Lainnya" tidak ada, set null (uncategorized)
-        data: { categoryId: fallback?.id ?? null },
+        data: { categoryId: fallback.id },
       });
     }
 

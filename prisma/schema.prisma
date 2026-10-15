@@ -39,6 +39,21 @@ model Store {
   shifts       Shift[]
   transactions Transaction[]
   pendingBills PendingBill[]
+  discounts    StoreDiscount[]
+}
+
+model StoreDiscount {
+  id        String   @id @default(uuid())
+  storeId   String
+  label     String
+  type      String   @default("percent")
+  value     Decimal  @db.Decimal(15, 2)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 model User {
@@ -235,16 +250,19 @@ enum TransactionStatus {
 }
 
 model TransactionItem {
-  id               String  @id @default(uuid())
+  id               String   @id @default(uuid())
   transactionId    String
   productId        String
   productName      String
   sku              String
   quantity         Int
-  unitPrice        Decimal @db.Decimal(15, 2)
-  subtotal         Decimal @db.Decimal(15, 2)
-  note             String  @default("")
-  selectedVariants Json    @default("[]")
+  unitPrice        Decimal  @db.Decimal(15, 2)
+  subtotal         Decimal  @db.Decimal(15, 2)
+  note             String   @default("")
+  selectedVariants Json     @default("[]")
+  discountType     String?
+  discountValue    Decimal? @db.Decimal(15, 2)
+  discountLabel    String?
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   product     Product     @relation(fields: [productId], references: [id])

@@ -16,6 +16,7 @@ import shiftsRoutes from './modules/shifts/shifts.routes';
 import transactionsRoutes from './modules/transactions/transactions.routes';
 import pendingBillsRoutes from './modules/pending-bills/pending-bills.routes';
 import reportsRoutes from './modules/reports/reports.routes';
+import discountsRoutes from './modules/discounts/discounts.routes';
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use('/api/v1/shifts', shiftsRoutes);
 app.use('/api/v1/transactions', transactionsRoutes);
 app.use('/api/v1/pending-bills', pendingBillsRoutes);
 app.use('/api/v1/reports', reportsRoutes);
+app.use('/api/v1/discounts', discountsRoutes);
 
 app.use(errorHandler);
 

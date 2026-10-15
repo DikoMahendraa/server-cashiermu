@@ -56,7 +56,8 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
     const taxRate = store.taxEnabled ? Number(store.taxRate) : 0;
     const serviceChargeRate = store.serviceChargeEnabled ? Number(store.serviceChargeRate) : 0;
 
-    const subtotal = body.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    // Gunakan subtotal per item dari frontend (sudah termasuk item discount jika ada)
+    const subtotal = body.items.reduce((sum, item) => sum + (item.subtotal ?? item.unitPrice * item.quantity), 0);
     let discountAmount = 0;
     if (body.discount) {
       discountAmount = body.discount.type === 'percent'
@@ -117,9 +118,12 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
                     sku: product.sku,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
-                    subtotal: item.unitPrice * item.quantity,
-                    note: item.note,
-                    selectedVariants: item.selectedVariants,
+                    subtotal: item.subtotal ?? item.unitPrice * item.quantity,
+                    note: item.note ?? '',
+                    selectedVariants: item.selectedVariants ?? [],
+                    discountType:  item.itemDiscount?.type  ?? null,
+                    discountValue: item.itemDiscount?.value ?? null,
+                    discountLabel: item.itemDiscount?.label ?? null,
                   };
                 }),
               },
@@ -170,20 +174,31 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
 
 export const listTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const storeId = req.user!.storeId;
-    const shiftId = typeof req.query['shiftId'] === 'string' ? req.query['shiftId'] : undefined;
+    const storeId  = req.user!.storeId;
+    const role     = req.user!.role;
+    const selfId   = req.user!.userId;
+
+    const shiftId  = typeof req.query['shiftId']  === 'string' ? req.query['shiftId']  : undefined;
     const branchId = typeof req.query['branchId'] === 'string' ? req.query['branchId'] : undefined;
-    const status = typeof req.query['status'] === 'string' ? req.query['status'] as 'paid' | 'voided' | 'pending' : undefined;
-    const from = typeof req.query['from'] === 'string' ? req.query['from'] : undefined;
-    const to = typeof req.query['to'] === 'string' ? req.query['to'] : undefined;
-    const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
+    const status   = typeof req.query['status']   === 'string' ? req.query['status'] as 'paid' | 'voided' | 'pending' : undefined;
+    const from     = typeof req.query['from']     === 'string' ? req.query['from']     : undefined;
+    const to       = typeof req.query['to']       === 'string' ? req.query['to']       : undefined;
+    const search   = typeof req.query['search']   === 'string' ? req.query['search']   : undefined;
+    const sort     = req.query['sort'] === 'asc' ? 'asc' : 'desc';
+
+    // Cashier hanya boleh lihat transaksi miliknya sendiri.
+    // Owner boleh filter per-user via query param, atau lihat semua.
+    const userIdFilter = role === 'owner'
+      ? (typeof req.query['userId'] === 'string' ? req.query['userId'] : undefined)
+      : selfId;
 
     const transactions = await prisma.transaction.findMany({
       where: {
         storeId,
-        ...(shiftId ? { shiftId } : {}),
+        ...(userIdFilter ? { userId: userIdFilter } : {}),
+        ...(shiftId  ? { shiftId }  : {}),
         ...(branchId ? { branchId } : {}),
-        ...(status ? { status } : {}),
+        ...(status   ? { status }   : {}),
         ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
         ...(search ? { OR: [{ invoiceNumber: { contains: search, mode: 'insensitive' } }, { customerName: { contains: search, mode: 'insensitive' } }] } : {}),
       },
@@ -192,7 +207,7 @@ export const listTransactions = async (req: Request, res: Response, next: NextFu
         items: { select: { id: true, productName: true, quantity: true, unitPrice: true, subtotal: true } },
         payments: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: sort },
     });
 
     res.json(transactions);
