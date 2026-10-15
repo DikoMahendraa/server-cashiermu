@@ -25,6 +25,10 @@ model Store {
   shiftEnabled               Boolean  @default(true)
   shiftRequireOpeningBalance Boolean  @default(true)
   shiftBranchSelection       Boolean  @default(true)
+  globalDiscountEnabled      Boolean  @default(false)
+  globalDiscountType         String   @default("percent")
+  globalDiscountValue        Decimal  @default(0) @db.Decimal(15, 2)
+  cashierCanDiscount         Boolean  @default(false)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -117,10 +121,13 @@ model Product {
   imageUrl   String?
   isActive   Boolean  @default(true)
   isFeatured Boolean  @default(false)
-  taxable    Boolean  @default(true)
-  unit       String   @default("pcs")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  taxable         Boolean  @default(true)
+  unit            String   @default("pcs")
+  discountEnabled Boolean  @default(false)
+  discountType    String   @default("percent")
+  discountValue   Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   store            Store             @relation(fields: [storeId], references: [id])
   category         Category          @relation(fields: [categoryId], references: [id])

@@ -40,13 +40,26 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = String(req.params['id']);
-    const productCount = await prisma.product.count({ where: { categoryId: id, storeId: req.user!.storeId } });
+    const id      = String(req.params['id']);
+    const storeId = req.user!.storeId;
+
+    const productCount = await prisma.product.count({ where: { categoryId: id, storeId } });
+
     if (productCount > 0) {
-      res.status(400).json({ message: 'Cannot delete category with linked products' });
-      return;
+      // Cari kategori "Lainnya" sebagai fallback (bukan kategori yang sedang dihapus)
+      const fallback = await prisma.category.findFirst({
+        where: { storeId, name: 'Lainnya', NOT: { id } },
+        select: { id: true },
+      });
+
+      await prisma.product.updateMany({
+        where: { categoryId: id, storeId },
+        // Jika "Lainnya" tidak ada, set null (uncategorized)
+        data: { categoryId: fallback?.id ?? null },
+      });
     }
-    await prisma.category.delete({ where: { id, storeId: req.user!.storeId } });
+
+    await prisma.category.delete({ where: { id, storeId } });
     res.status(204).send();
   } catch (err) {
     next(err);

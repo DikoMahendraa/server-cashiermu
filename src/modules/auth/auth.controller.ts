@@ -10,9 +10,7 @@ const loginAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
 const DEFAULT_CATEGORIES = [
   { name: 'Makanan', icon: 'utensils', color: '#f97316', sortOrder: 1 },
   { name: 'Minuman', icon: 'coffee',   color: '#3b82f6', sortOrder: 2 },
-  { name: 'Snack',   icon: 'cookie',   color: '#eab308', sortOrder: 3 },
-  { name: 'Rokok',   icon: 'cigarette',color: '#6b7280', sortOrder: 4 },
-  { name: 'Lainnya', icon: 'package',  color: '#8b5cf6', sortOrder: 5 },
+  { name: 'Lainnya', icon: 'package',  color: '#8b5cf6', sortOrder: 3 },
 ];
 
 function checkLock(key: string): boolean {
@@ -174,6 +172,10 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         shiftEnabled: true,
         shiftRequireOpeningBalance: true,
         shiftBranchSelection: true,
+        globalDiscountEnabled: true,
+        globalDiscountType: true,
+        globalDiscountValue: true,
+        cashierCanDiscount: true,
       },
     });
 
@@ -300,6 +302,10 @@ export const me = async (req: Request, res: Response, next: NextFunction): Promi
         shiftEnabled: true,
         shiftRequireOpeningBalance: true,
         shiftBranchSelection: true,
+        globalDiscountEnabled: true,
+        globalDiscountType: true,
+        globalDiscountValue: true,
+        cashierCanDiscount: true,
       },
     });
 

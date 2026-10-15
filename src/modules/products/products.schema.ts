@@ -17,17 +17,20 @@ const variantGroupSchema = z.object({
 export const createProductSchema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
-  barcode: z.string().optional(),
+  barcode: z.string().nullish(),
   categoryId: z.string().min(1),
   buyPrice: z.coerce.number().min(0),
   sellPrice: z.coerce.number().min(0),
   stock: z.coerce.number().int().default(0),
   minStock: z.coerce.number().int().default(5),
-  imageUrl: z.string().optional(),
+  imageUrl: z.string().nullish(),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   taxable: z.boolean().default(true),
   unit: z.string().default('pcs'),
+  discountEnabled: z.boolean().default(false),
+  discountType: z.enum(['percent', 'amount']).default('percent'),
+  discountValue: z.coerce.number().min(0).default(0),
   variantGroups: z.array(variantGroupSchema).default([]),
 });
 
