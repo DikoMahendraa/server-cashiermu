@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../../config/database';
@@ -10,9 +11,7 @@ const loginAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
 const DEFAULT_CATEGORIES = [
   { name: 'Makanan', icon: 'utensils', color: '#f97316', sortOrder: 1 },
   { name: 'Minuman', icon: 'coffee',   color: '#3b82f6', sortOrder: 2 },
-  { name: 'Snack',   icon: 'cookie',   color: '#eab308', sortOrder: 3 },
-  { name: 'Rokok',   icon: 'cigarette',color: '#6b7280', sortOrder: 4 },
-  { name: 'Lainnya', icon: 'package',  color: '#8b5cf6', sortOrder: 5 },
+  { name: 'Lainnya', icon: 'package',  color: '#8b5cf6', sortOrder: 3 },
 ];
 
 function checkLock(key: string): boolean {
@@ -41,7 +40,9 @@ function signAccessToken(payload: object): string {
 }
 
 function signRefreshToken(payload: object): string {
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions);
+  // jwtid makes each token unique: without it, two logins in the same second produce
+  // identical tokens and the unique constraint on RefreshToken.token rejects the second.
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN, jwtid: randomUUID() } as jwt.SignOptions);
 }
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -57,7 +58,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     const pinHash = await bcrypt.hash(pin, 10);
 
     const { store, user } = await prisma.$transaction(async tx => {
-      const store = await tx.store.create({ data: { name: storeName } });
+      const store = await tx.store.create({ data: { name: storeName, phone, email } });
       const branch = await tx.branch.create({ data: { name: 'Cabang Utama', storeId: store.id } });
       const user = await tx.user.create({
         data: { name: ownerName, email, phone, role: 'owner', pinHash, branchId: branch.id, storeId: store.id },
@@ -156,7 +157,29 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 
     const store = await prisma.store.findUnique({
       where: { id: user.storeId },
-      select: { id: true, name: true, shiftEnabled: true, currency: true, currencySymbol: true },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        email: true,
+        logoUrl: true,
+        receiptHeader: true,
+        receiptFooter: true,
+        taxEnabled: true,
+        taxRate: true,
+        serviceChargeEnabled: true,
+        serviceChargeRate: true,
+        currency: true,
+        currencySymbol: true,
+        shiftEnabled: true,
+        shiftRequireOpeningBalance: true,
+        shiftBranchSelection: true,
+        globalDiscountEnabled: true,
+        globalDiscountType: true,
+        globalDiscountValue: true,
+        cashierCanDiscount: true,
+      },
     });
 
     // requireShift: kasir wajib punya shift aktif sebelum operasional
@@ -169,7 +192,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
     });
 
     res.json({
-      user: { id: user.id, name: user.name, role: user.role, branchId: user.branchId, avatarUrl: user.avatarUrl, storeId: user.storeId },
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, branchId: user.branchId, avatarUrl: user.avatarUrl, storeId: user.storeId },
       store,
       requireShift,
       activeShift,
@@ -222,6 +245,35 @@ export const logout = async (req: Request, res: Response, next: NextFunction): P
   }
 };
 
+export const updateMe = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const { name, email, phone } = req.body as { name?: string; email?: string; phone?: string };
+
+    if (email) {
+      const conflict = await prisma.user.findFirst({ where: { email, NOT: { id: userId } } });
+      if (conflict) {
+        res.status(409).json({ message: 'Email sudah digunakan oleh akun lain' });
+        return;
+      }
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(name  !== undefined ? { name }  : {}),
+        ...(email !== undefined ? { email } : {}),
+        ...(phone !== undefined ? { phone } : {}),
+      },
+      select: { id: true, name: true, email: true, phone: true, role: true },
+    });
+
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({
@@ -235,7 +287,29 @@ export const me = async (req: Request, res: Response, next: NextFunction): Promi
 
     const store = await prisma.store.findUnique({
       where: { id: user.storeId },
-      select: { id: true, name: true, shiftEnabled: true, currency: true, currencySymbol: true },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        email: true,
+        logoUrl: true,
+        receiptHeader: true,
+        receiptFooter: true,
+        taxEnabled: true,
+        taxRate: true,
+        serviceChargeEnabled: true,
+        serviceChargeRate: true,
+        currency: true,
+        currencySymbol: true,
+        shiftEnabled: true,
+        shiftRequireOpeningBalance: true,
+        shiftBranchSelection: true,
+        globalDiscountEnabled: true,
+        globalDiscountType: true,
+        globalDiscountValue: true,
+        cashierCanDiscount: true,
+      },
     });
 
     const requireShift = user.role !== 'owner' && (store?.shiftEnabled ?? false);

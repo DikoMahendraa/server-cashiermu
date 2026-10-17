@@ -86,6 +86,40 @@ export const changePin = async (req: Request, res: Response, next: NextFunction)
   }
 };
 
+export const deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const id = String(req.params['id']);
+    const storeId = req.user!.storeId;
+
+    if (id === req.user!.userId) {
+      res.status(400).json({ message: 'Tidak dapat menghapus akun sendiri' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id, storeId } });
+    if (!user) { res.status(404).json({ message: 'Karyawan tidak ditemukan' }); return; }
+    if (user.role === 'owner') { res.status(403).json({ message: 'Tidak dapat menghapus akun owner' }); return; }
+
+    const [txCount, shiftCount] = await Promise.all([
+      prisma.transaction.count({ where: { userId: id } }),
+      prisma.shift.count({ where: { userId: id } }),
+    ]);
+
+    if (txCount > 0 || shiftCount > 0) {
+      res.status(409).json({
+        message: `Karyawan ini memiliki ${txCount} transaksi dan ${shiftCount} shift. Nonaktifkan akun untuk membatasi akses.`,
+        hasData: true,
+      });
+      return;
+    }
+
+    await prisma.user.delete({ where: { id } });
+    res.json({ message: 'Karyawan berhasil dihapus' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const toggleStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = String(req.params['id']);

@@ -19,5 +19,6 @@ router.post('/login', loginLimiter, validate(loginSchema), authController.login)
 router.post('/refresh', validate(refreshSchema), authController.refresh);
 router.post('/logout', authenticate, validate(refreshSchema), authController.logout);
 router.get('/me', authenticate, authController.me);
+router.patch('/me', authenticate, authController.updateMe);
 
 export default router;

@@ -13,5 +13,6 @@ router.get('/:id', authenticate, requireRole('owner'), usersController.getUser);
 router.patch('/:id', authenticate, requireRole('owner'), validate(updateUserSchema), usersController.updateUser);
 router.patch('/:id/pin', authenticate, requireRole('owner'), validate(changePinSchema), usersController.changePin);
 router.patch('/:id/status', authenticate, requireRole('owner'), usersController.toggleStatus);
+router.delete('/:id', authenticate, requireRole('owner'), usersController.deleteUser);
 
 export default router;

@@ -25,6 +25,10 @@ model Store {
   shiftEnabled               Boolean  @default(true)
   shiftRequireOpeningBalance Boolean  @default(true)
   shiftBranchSelection       Boolean  @default(true)
+  globalDiscountEnabled      Boolean  @default(false)
+  globalDiscountType         String   @default("percent")
+  globalDiscountValue        Decimal  @default(0) @db.Decimal(15, 2)
+  cashierCanDiscount         Boolean  @default(false)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -35,6 +39,21 @@ model Store {
   shifts       Shift[]
   transactions Transaction[]
   pendingBills PendingBill[]
+  discounts    StoreDiscount[]
+}
+
+model StoreDiscount {
+  id        String   @id @default(uuid())
+  storeId   String
+  label     String
+  type      String   @default("percent")
+  value     Decimal  @db.Decimal(15, 2)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 model User {
@@ -117,10 +136,13 @@ model Product {
   imageUrl   String?
   isActive   Boolean  @default(true)
   isFeatured Boolean  @default(false)
-  taxable    Boolean  @default(true)
-  unit       String   @default("pcs")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  taxable         Boolean  @default(true)
+  unit            String   @default("pcs")
+  discountEnabled Boolean  @default(false)
+  discountType    String   @default("percent")
+  discountValue   Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   store            Store             @relation(fields: [storeId], references: [id])
   category         Category          @relation(fields: [categoryId], references: [id])
@@ -187,7 +209,7 @@ enum ShiftStatus {
 model Transaction {
   id                  String            @id @default(uuid())
   storeId             String
-  invoiceNumber       String            @unique
+  invoiceNumber       String
   shiftId             String?
   userId              String
   branchId            String
@@ -210,6 +232,8 @@ model Transaction {
   voidedAt            DateTime?
   voidedBy            String?
   note                String            @default("")
+  // Client-generated key per checkout attempt; makes POST /transactions safe to retry.
+  idempotencyKey      String?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -219,6 +243,10 @@ model Transaction {
   branch   Branch            @relation(fields: [branchId], references: [id])
   items    TransactionItem[]
   payments PaymentEntry[]
+
+  // Invoice sequences are per store (INV-YYYYMMDD-0001 restarts for every store).
+  @@unique([storeId, invoiceNumber])
+  @@unique([storeId, idempotencyKey])
 }
 
 enum TransactionStatus {
@@ -228,16 +256,19 @@ enum TransactionStatus {
 }
 
 model TransactionItem {
-  id               String  @id @default(uuid())
+  id               String   @id @default(uuid())
   transactionId    String
   productId        String
   productName      String
   sku              String
   quantity         Int
-  unitPrice        Decimal @db.Decimal(15, 2)
-  subtotal         Decimal @db.Decimal(15, 2)
-  note             String  @default("")
-  selectedVariants Json    @default("[]")
+  unitPrice        Decimal  @db.Decimal(15, 2)
+  subtotal         Decimal  @db.Decimal(15, 2)
+  note             String   @default("")
+  selectedVariants Json     @default("[]")
+  discountType     String?
+  discountValue    Decimal? @db.Decimal(15, 2)
+  discountLabel    String?
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   product     Product     @relation(fields: [productId], references: [id])
