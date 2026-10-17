@@ -121,3 +121,4 @@ warning. Share the password with teammates only; browsers will ask for it once p
 | `EADDRINUSE :::3000`                              | Another process uses the port: `lsof -iTCP:3000 -sTCP:LISTEN`, then stop it         |
 | Hook rejects my commit                            | Read the message — see [Git workflow](06-git-workflow.md#what-the-git-hooks-do)     |
 | E2E test says "must run against a local API"      | `E2E_API_URL` must point to `localhost`; this is a safety guard on purpose          |
+| E2E fails with `429 Too many login attempts`      | The login limiter allows 10 logins/min per IP and each e2e run logs in 3 times. Wait a minute between runs |

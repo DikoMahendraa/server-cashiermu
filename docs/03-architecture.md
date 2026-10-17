@@ -116,6 +116,29 @@ Older controllers return only `{ message }`. When you touch one, add a `code`; d
 Money formulas deliberately mirror the mobile app (`computeUnitPrice`, `applyItemDiscount`, `getCartTotal`). If you
 change a pricing rule, change **both repos in the same release**.
 
+## Profit report
+
+`GET /reports/profit` (owner only) answers "how much did I really earn?". The rules live in
+`modules/reports/profit.report.ts` (pure math, unit-tested); `profit.service.ts` runs the SQL.
+
+| Term          | Meaning                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `grossSales`  | Sum of sale-line subtotals (after per-item discounts)                                    |
+| `discounts`   | Cart-level discounts                                                                     |
+| `netSales`    | `grossSales − discounts`. **Tax and service charge are not revenue** (reported separately) |
+| `cogs` (HPP)  | Sum of `costPrice × quantity`; `costPrice` is copied from `Product.buyPrice` **at checkout** |
+| `grossProfit` | `netSales − cogs`                                                                        |
+
+- Only `paid` transactions count; voided ones are excluded.
+- `from`/`to` are ISO timestamps with an offset; the **app** decides where a business day starts (WIB).
+- Sales made before cost snapshots existed were backfilled with the product's *current* buy price — an approximation.
+- "Net profit" (after operating expenses) is planned with an expenses module; the report will offer both views.
+
+## Products that don't track stock
+
+`Product.trackStock = false` marks services and unlimited items. Checkout never checks or decrements their stock,
+void never restores it, stock adjustments are rejected, and `stockStatus` is always `safe`.
+
 ## Known gaps (so you don't mistake them for patterns to copy)
 
 - List endpoints return full arrays; `utils/pagination.ts` exists but nothing uses it yet. New list endpoints should paginate.
@@ -123,4 +146,3 @@ change a pricing rule, change **both repos in the same release**.
 - Login lockout is in memory and per IP; refresh tokens are stored in plain text.
 - `app.set('trust proxy', …)` is not set. Behind Railway/Render every request appears to come from the proxy, so IP-based rate limits (login, `/docs` password attempts) are shared by everyone.
 - `errorHandler` returns `err.message` on 500 — it can leak internals. Throw typed errors with safe messages.
-- SKU/barcode are globally unique instead of per store.

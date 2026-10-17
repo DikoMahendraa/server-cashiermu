@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     include: e2e ? ['test/e2e/**/*.e2e.test.ts'] : ['test/**/*.test.ts'],
     exclude: ['**/node_modules/**', 'dist/**', ...(e2e ? [] : ['test/e2e/**'])],
+    // e2e files share one throwaway owner and shift, so they must not run in parallel
+    fileParallelism: !e2e,
     testTimeout: e2e ? 20_000 : 5_000,
   },
 });

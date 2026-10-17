@@ -20,6 +20,8 @@ export interface PricingProduct {
   id: string;
   name: string;
   sellPrice: number;
+  /** HPP per unit; copied onto each sale line so profit survives later buy-price changes. */
+  buyPrice: number;
   discountEnabled: boolean;
   discountType: string; // 'percent' | 'amount'
   discountValue: number;
@@ -64,6 +66,8 @@ export interface PricedItem {
   productName: string;
   quantity: number;
   unitPrice: number;
+  /** Cost (HPP) per unit at the moment of sale. */
+  costPrice: number;
   subtotal: number;
   note: string;
   selectedVariants: PricedVariant[];
@@ -201,6 +205,7 @@ export function priceCart(
       productName: product.name,
       quantity: item.quantity,
       unitPrice: round2(unitPrice),
+      costPrice: round2(product.buyPrice),
       subtotal: round2(subtotal),
       note: item.note ?? '',
       selectedVariants: variants,

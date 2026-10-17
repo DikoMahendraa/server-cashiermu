@@ -12,5 +12,6 @@ router.get('/chart', reportsController.getChart);
 router.get('/top-products', reportsController.getTopProducts);
 router.get('/payment-breakdown', reportsController.getPaymentBreakdown);
 router.get('/shift-summary', reportsController.getShiftSummary);
+router.get('/profit', reportsController.getProfit);
 
 export default router;

@@ -38,6 +38,8 @@ function seed() {
         stock: 5,
         isActive: true,
         sellPrice: 20000,
+        buyPrice: 8000,
+        trackStock: true,
         discountEnabled: false,
         discountType: 'percent',
         discountValue: 0,
@@ -55,6 +57,21 @@ function seed() {
         ],
       },
       {
+        id: 'p-service',
+        storeId: 'store-1',
+        name: 'Cuci Kiloan',
+        sku: 'CUCI',
+        stock: 0,
+        trackStock: false,
+        isActive: true,
+        sellPrice: 30000,
+        buyPrice: 5000,
+        discountEnabled: false,
+        discountType: 'percent',
+        discountValue: 0,
+        variantGroups: [],
+      },
+      {
         id: 'p-other-store',
         storeId: 'store-2',
         name: 'Asing',
@@ -62,6 +79,8 @@ function seed() {
         stock: 99,
         isActive: true,
         sellPrice: 1000,
+        buyPrice: 500,
+        trackStock: true,
         discountEnabled: false,
         discountType: 'percent',
         discountValue: 0,
@@ -324,6 +343,56 @@ describe('createCheckout', () => {
         'BRANCH_NOT_ALLOWED',
         403,
       );
+    });
+  });
+
+  describe('cost snapshot (HPP)', () => {
+    it('stores the buy price on each sale line and keeps old sales unchanged when the price changes later', async () => {
+      const first = await createCheckout(db, cashier, body());
+      expect((first.transaction as any).items[0]).toMatchObject({ unitPrice: 20000, costPrice: 8000 });
+
+      state.products[0].buyPrice = 9500; // owner raises the buy price afterwards
+      const second = await createCheckout(db, cashier, body());
+      expect((second.transaction as any).items[0].costPrice).toBe(9500);
+      expect((first.transaction as any).items[0].costPrice).toBe(8000);
+    });
+  });
+
+  describe('trackStock = false (services / unlimited items)', () => {
+    const serviceLine = { productId: 'p-service', quantity: 3, unitPrice: 30000, selectedVariants: [], note: '' };
+
+    it('sells without checking or decrementing stock', async () => {
+      const { transaction } = await createCheckout(
+        db,
+        cashier,
+        body({ items: [serviceLine], payments: [{ method: 'transfer', amount: 90000 }] }),
+      );
+      expect(transaction).toMatchObject({ grandTotal: 90000 });
+      expect(state.products.find(p => p.id === 'p-service')!.stock).toBe(0);
+      expect(db.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('in a mixed cart only decrements the tracked product', async () => {
+      await createCheckout(
+        db,
+        cashier,
+        body({
+          items: [
+            {
+              productId: 'p-1',
+              quantity: 2,
+              unitPrice: 20000,
+              selectedVariants: [{ optionId: 'o-reg' } as any],
+              note: '',
+            },
+            serviceLine,
+          ],
+          payments: [{ method: 'qris', amount: 130000 }],
+        }),
+      );
+      expect(state.products.find(p => p.id === 'p-1')!.stock).toBe(3);
+      expect(state.products.find(p => p.id === 'p-service')!.stock).toBe(0);
+      expect(db.product.updateMany).toHaveBeenCalledTimes(1);
     });
   });
 

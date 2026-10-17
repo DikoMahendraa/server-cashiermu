@@ -3,39 +3,14 @@
  * Uses the throwaway E2E_* account from .env.example (registered on first run) and its own
  * product, so it never touches real store data. Payloads match what the mobile app sends.
  */
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
-function e2eEnv(): Record<string, string> {
-  const fromExample = Object.fromEntries(
-    readFileSync(join(__dirname, '../../.env.example'), 'utf8')
-      .split('\n')
-      .filter(line => line.startsWith('E2E_'))
-      .map(line => line.split('=', 2) as [string, string]),
-  );
-  const pick = (k: string) => process.env[k] ?? fromExample[k];
-  return { url: pick('E2E_API_URL'), email: pick('E2E_EMAIL'), phone: pick('E2E_PHONE'), pin: pick('E2E_PIN') };
-}
-
-const env = e2eEnv();
-const host = new URL(env.url).hostname;
-if (!['localhost', '127.0.0.1', '::1'].includes(host)) {
-  throw new Error(`E2E checkout must run against a local API, got ${env.url}`);
-}
+import { call as rawCall, e2eEnv, ensureOwner, ensureShift } from './helpers';
 
 let token = '';
 
-async function call(method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
-  const res = await fetch(`${env.url}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await res.text();
-  return { status: res.status, headers: res.headers, data: text ? JSON.parse(text) : null };
-}
+const call = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
+  rawCall(token, method, path, body, headers);
 
 const key = () => `e2e-${randomUUID()}`;
 
@@ -61,22 +36,7 @@ async function stock(): Promise<number> {
 }
 
 beforeAll(async () => {
-  let login = await call('POST', '/auth/login', { credential: env.email, pin: env.pin });
-  if (login.status === 401) {
-    const reg = await call('POST', '/auth/register', {
-      storeName: 'E2E Test Store',
-      ownerName: 'E2E Owner',
-      email: env.email,
-      phone: env.phone,
-      pin: env.pin,
-      pinConfirm: env.pin,
-    });
-    expect(reg.status, JSON.stringify(reg.data)).toBe(201);
-    login = await call('POST', '/auth/login', { credential: env.email, pin: env.pin });
-  }
-  expect(login.status, JSON.stringify(login.data)).toBe(200);
-  token = login.data.accessToken;
-  expect(login.data.store.name).toBe('E2E Test Store'); // guard: never run against a real store
+  token = await ensureOwner({ email: e2eEnv.email, phone: e2eEnv.phone, storeName: 'E2E Test Store' });
 
   // Known store config so totals are predictable.
   const store = await call('PATCH', '/store', {
@@ -87,20 +47,9 @@ beforeAll(async () => {
   });
   expect(store.status).toBe(200);
 
-  const current = await call('GET', '/shifts/current');
-  if (current.data) {
-    shiftId = current.data.id;
-  } else {
-    const branches = await call('GET', '/branches');
-    const opened = await call('POST', '/shifts/open', {
-      type: 'pagi',
-      openingBalance: 0,
-      branchId: branches.data[0].id,
-    });
-    expect(opened.status, JSON.stringify(opened.data)).toBe(201);
-    shiftId = opened.data.id;
-    openedShiftHere = true;
-  }
+  const shift = await ensureShift(token);
+  shiftId = shift.id;
+  openedShiftHere = shift.openedHere;
 
   const categories = await call('GET', '/categories');
   const product = await call('POST', '/products', {

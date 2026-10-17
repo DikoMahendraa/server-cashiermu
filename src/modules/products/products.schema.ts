@@ -26,6 +26,8 @@ export const createProductSchema = z.object({
   imageUrl: z.string().nullish(),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
+  // false = unlimited stock / service item: never checked or decremented at checkout
+  trackStock: z.boolean().default(true),
   taxable: z.boolean().default(true),
   unit: z.string().default('pcs'),
   discountEnabled: z.boolean().default(false),

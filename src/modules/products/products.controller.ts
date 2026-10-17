@@ -1,11 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './products.schema';
 
-function stockStatus(stock: number, minStock: number): string {
-  if (stock === 0) return 'empty';
-  if (stock <= minStock) return 'low';
+// Untracked products (services, unlimited items) have no stock level, so they are never "low" or "empty".
+function stockStatus(product: { stock: number; minStock: number; trackStock: boolean }): string {
+  if (!product.trackStock) return 'safe';
+  if (product.stock === 0) return 'empty';
+  if (product.stock <= product.minStock) return 'low';
   return 'safe';
+}
+
+/** SKU and barcode are unique per store; turn the database error into a message the cashier can act on. */
+function sendIfDuplicate(err: unknown, res: Response): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    const target = String(err.meta?.['target'] ?? '').toLowerCase();
+    if (target.includes('barcode')) {
+      res.status(409).json({ code: 'BARCODE_TAKEN', message: 'Barcode sudah dipakai produk lain di toko ini' });
+      return true;
+    }
+    if (target.includes('sku')) {
+      res.status(409).json({ code: 'SKU_TAKEN', message: 'SKU sudah dipakai produk lain di toko ini' });
+      return true;
+    }
+  }
+  return false;
 }
 
 export const listProducts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -27,7 +46,7 @@ export const listProducts = async (req: Request, res: Response, next: NextFuncti
       orderBy: { name: 'asc' },
     });
 
-    const enriched = products.map(p => ({ ...p, stockStatus: stockStatus(p.stock, p.minStock) }));
+    const enriched = products.map(p => ({ ...p, stockStatus: stockStatus(p) }));
     const filtered = stockFilter ? enriched.filter(p => p.stockStatus === stockFilter) : enriched;
 
     res.json(filtered);
@@ -59,7 +78,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     res.status(201).json(product);
   } catch (err) {
-    next(err);
+    if (!sendIfDuplicate(err, res)) next(err);
   }
 };
 
@@ -77,7 +96,7 @@ export const getProduct = async (req: Request, res: Response, next: NextFunction
       res.status(404).json({ message: 'Product not found' });
       return;
     }
-    res.json({ ...product, stockStatus: stockStatus(product.stock, product.minStock) });
+    res.json({ ...product, stockStatus: stockStatus(product) });
   } catch (err) {
     next(err);
   }
@@ -91,9 +110,9 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       data: req.body as UpdateProductDto,
       include: { category: { select: { id: true, name: true } } },
     });
-    res.json({ ...product, stockStatus: stockStatus(product.stock, product.minStock) });
+    res.json({ ...product, stockStatus: stockStatus(product) });
   } catch (err) {
-    next(err);
+    if (!sendIfDuplicate(err, res)) next(err);
   }
 };
 
@@ -109,6 +128,14 @@ export const adjustStock = async (req: Request, res: Response, next: NextFunctio
       return;
     }
 
+    if (!product.trackStock) {
+      res.status(422).json({
+        code: 'STOCK_NOT_TRACKED',
+        message: 'Produk ini tidak melacak stok. Aktifkan pelacakan stok terlebih dahulu.',
+      });
+      return;
+    }
+
     const newStock = product.stock + adjustment;
     if (newStock < 0) {
       res.status(422).json({ message: 'Insufficient stock' });
@@ -120,7 +147,7 @@ export const adjustStock = async (req: Request, res: Response, next: NextFunctio
       data: { stock: newStock },
       include: { category: { select: { id: true, name: true } } },
     });
-    res.json({ ...updated, stockStatus: stockStatus(updated.stock, updated.minStock) });
+    res.json({ ...updated, stockStatus: stockStatus(updated) });
   } catch (err) {
     next(err);
   }

@@ -7,6 +7,22 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Laporan laba kotor — `GET /reports/profit`** (khusus owner). Filter: `from`, `to` (timestamp ISO, mis. `2026-10-01T00:00:00+07:00`), `branchId`, `userId`, `limit`. Mengembalikan `grossSales`, `discounts`, `netSales`, `cogs` (HPP), `grossProfit`, `marginPct`, pajak/service charge (dilaporkan terpisah, bukan pendapatan), rincian per karyawan, dan produk terlaris berdasarkan laba. Hanya transaksi `paid` yang dihitung.
+- **HPP tersimpan di setiap baris penjualan** (`TransactionItem.costPrice`) saat checkout, sehingga laba tetap benar walau harga beli produk berubah kemudian.
+- **`Product.trackStock`** (default `true`). Jika `false` (jasa / stok tanpa batas): checkout tidak memeriksa maupun mengurangi stok, void tidak mengembalikan stok, dan `PATCH /products/:id/stock` ditolak dengan `422 STOCK_NOT_TRACKED`. `stockStatus` selalu `safe`.
+- Error produk baru: `409 SKU_TAKEN` dan `409 BARCODE_TAKEN`.
+- Test e2e baru (`test/e2e/catalog-profit.e2e.test.ts`, `helpers.ts`) dan akun test kedua (`E2E_EMAIL_2`, `E2E_PHONE_2`) untuk membuktikan isolasi antar toko.
+
+### Changed
+
+- **SKU dan barcode kini unik per toko**, bukan global (toko berbeda boleh memakai SKU/barcode yang sama).
+- Void transaksi hanya mengembalikan stok untuk produk yang `trackStock = true`.
+- Migration: `20261018130000_add_cost_snapshot_track_stock_per_store_sku`
+  - **Backfill:** baris penjualan lama diisi dengan harga beli produk **saat ini**. Ini hanya perkiraan untuk riwayat (harga beli saat itu tidak pernah disimpan); semua penjualan baru memakai HPP yang sebenarnya.
+  - Kompatibilitas app: semua versi app tetap jalan. Produk lama otomatis `trackStock = true`. Toggle "Lacak stok" dan kartu laba ada di app versi terbaru.
+
 ## [1.3.0] — 2026-10-18
 
 > **Catatan upgrade:** rilis ini membawa 2 migration database. Jalankan `npx prisma migrate deploy` (setelah backup) **sebelum** menjalankan server versi baru. Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime.

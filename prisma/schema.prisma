@@ -126,12 +126,14 @@ model Product {
   id         String   @id @default(uuid())
   storeId    String
   name       String
-  sku        String   @unique
-  barcode    String?  @unique
+  sku        String
+  barcode    String?
   categoryId String
   buyPrice   Decimal  @db.Decimal(15, 2)
   sellPrice  Decimal  @db.Decimal(15, 2)
   stock      Int      @default(0)
+  // false = unlimited / service: never checked or decremented at checkout
+  trackStock Boolean  @default(true)
   minStock   Int      @default(5)
   imageUrl   String?
   isActive   Boolean  @default(true)
@@ -148,6 +150,10 @@ model Product {
   category         Category          @relation(fields: [categoryId], references: [id])
   variantGroups    VariantGroup[]
   transactionItems TransactionItem[]
+
+  // SKU and barcode are unique within a store, not across all stores
+  @@unique([storeId, sku])
+  @@unique([storeId, barcode])
 }
 
 model VariantGroup {
@@ -263,6 +269,8 @@ model TransactionItem {
   sku              String
   quantity         Int
   unitPrice        Decimal  @db.Decimal(15, 2)
+  // Product.buyPrice (HPP) per unit at the moment of sale, so profit stays correct when buy prices change later
+  costPrice        Decimal  @default(0) @db.Decimal(15, 2)
   subtotal         Decimal  @db.Decimal(15, 2)
   note             String   @default("")
   selectedVariants Json     @default("[]")

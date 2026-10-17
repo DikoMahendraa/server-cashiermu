@@ -21,6 +21,7 @@ const coffee: PricingProduct = {
   id: 'p-coffee',
   name: 'Kopi Susu',
   sellPrice: 20000,
+  buyPrice: 8000,
   discountEnabled: false,
   discountType: 'percent',
   discountValue: 0,
@@ -52,6 +53,7 @@ const bread: PricingProduct = {
   id: 'p-bread',
   name: 'Roti',
   sellPrice: 10000,
+  buyPrice: 6000,
   discountEnabled: false,
   discountType: 'percent',
   discountValue: 0,
@@ -95,6 +97,18 @@ describe('priceCart', () => {
     expect(cart.items[0].subtotal).toBe(56000);
     expect(cart.items[0].selectedVariants.map(v => v.optionLabel)).toEqual(['Large', 'Boba']);
     expect(cart.grandTotal).toBe(56000);
+  });
+
+  it('copies the product buy price onto each line as costPrice, regardless of variants or discounts', () => {
+    const cart = priceCart(
+      [
+        line('p-coffee', 28000, 2, ['o-large', 'o-boba']),
+        line('p-bread', 10000, 1, [], { type: 'percent', value: 50 }),
+      ],
+      products,
+      store,
+    );
+    expect(cart.items.map(i => i.costPrice)).toEqual([8000, 6000]);
   });
 
   it('rejects a tampered or stale unit price with PRICE_CHANGED', () => {
