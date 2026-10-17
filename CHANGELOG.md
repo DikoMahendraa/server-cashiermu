@@ -7,6 +7,16 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-18
+
+> **Catatan upgrade (penting):** rilis ini membawa **3 migration database**. Backup database, lalu jalankan `npx prisma migrate deploy` **sebelum** menjalankan server versi baru. Efeknya pada data yang sudah ada:
+> - `20261018130000_add_cost_snapshot_track_stock_per_store_sku` — kolom baru `TransactionItem.costPrice` (baris penjualan lama diisi harga beli produk **saat ini**, hanya perkiraan untuk riwayat), `Product.trackStock` (produk lama = `true`), dan SKU/barcode menjadi unik **per toko**.
+> - `20261019100000_add_store_sector_product_attributes` — kolom `Store.sector` (toko lama = `general`) dan `Product.attributes` (kosong).
+> - `20261020100000_three_sectors_subtype_decimal_quantity` — enum `BusinessSector` menjadi 3 nilai (toko yang memakai jenis yang sudah dihapus otomatis menjadi `general`), kolom `Store.subtype` (`default`), `Product.allowDecimalQty` (`false`), dan `TransactionItem.quantity` dari `Int` ke `Decimal(12,3)` (nilai lama tetap utuh).
+>
+> Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime (situs dokumentasi `/docs` mati di production kecuali `DOCS_ENABLED=true` + `DOCS_PASSWORD`).
+> **Kompatibilitas app:** semua versi app yang sudah terpasang tetap bisa checkout. App versi 1.4.0 membutuhkan backend ini.
+
 ### Added
 
 - **Laporan laba kotor — `GET /reports/profit`** (khusus owner). Filter: `from`, `to` (timestamp ISO, mis. `2026-10-01T00:00:00+07:00`), `branchId`, `userId`, `limit`. Mengembalikan `grossSales`, `discounts`, `netSales`, `cogs` (HPP), `grossProfit`, `marginPct`, pajak/service charge (dilaporkan terpisah, bukan pendapatan), rincian per karyawan, dan produk terlaris berdasarkan laba. Hanya transaksi `paid` yang dihitung.
