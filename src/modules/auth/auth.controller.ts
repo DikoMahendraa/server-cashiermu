@@ -5,14 +5,9 @@ import jwt from 'jsonwebtoken';
 import prisma from '../../config/database';
 import { env } from '../../config/env';
 import { RegisterDto, CheckCredentialDto, LoginDto, RefreshDto } from './auth.schema';
+import { getSubtypeConfig, isValidSubtype } from '../sectors/sector.config';
 
 const loginAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
-
-const DEFAULT_CATEGORIES = [
-  { name: 'Makanan', icon: 'utensils', color: '#f97316', sortOrder: 1 },
-  { name: 'Minuman', icon: 'coffee', color: '#3b82f6', sortOrder: 2 },
-  { name: 'Lainnya', icon: 'package', color: '#8b5cf6', sortOrder: 3 },
-];
 
 function checkLock(key: string): boolean {
   const attempt = loginAttempts.get(key);
@@ -50,7 +45,12 @@ function signRefreshToken(payload: object): string {
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { storeName, ownerName, email, phone, pin } = req.body as RegisterDto;
+    const { storeName, ownerName, sector, subtype, email, phone, pin } = req.body as RegisterDto;
+
+    if (!isValidSubtype(sector, subtype)) {
+      res.status(422).json({ code: 'INVALID_SUBTYPE', message: 'Jenis usaha tidak valid untuk bidang usaha ini' });
+      return;
+    }
 
     const existing = await prisma.user.findFirst({ where: { OR: [{ email }, { phone }] } });
     if (existing) {
@@ -61,13 +61,18 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     const pinHash = await bcrypt.hash(pin, 10);
 
     const { store, user } = await prisma.$transaction(async tx => {
-      const store = await tx.store.create({ data: { name: storeName, phone, email } });
+      const store = await tx.store.create({ data: { name: storeName, phone, email, sector, subtype } });
       const branch = await tx.branch.create({ data: { name: 'Cabang Utama', storeId: store.id } });
       const user = await tx.user.create({
         data: { name: ownerName, email, phone, role: 'owner', pinHash, branchId: branch.id, storeId: store.id },
       });
       await tx.category.createMany({
-        data: DEFAULT_CATEGORIES.map(cat => ({ ...cat, storeId: store.id })),
+        // Starter categories for the chosen sector; the owner can rename, add or delete them afterwards
+        data: getSubtypeConfig(sector, subtype).categories.map((cat, index) => ({
+          ...cat,
+          sortOrder: index + 1,
+          storeId: store.id,
+        })),
       });
       return { store, user };
     });
@@ -82,7 +87,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 
     res.status(201).json({
       user: { id: user.id, name: user.name, role: user.role, storeId: user.storeId },
-      store: { id: store.id, name: store.name },
+      store: { id: store.id, name: store.name, sector: store.sector, subtype: store.subtype },
       accessToken,
       refreshToken,
     });
@@ -182,6 +187,8 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         globalDiscountType: true,
         globalDiscountValue: true,
         cashierCanDiscount: true,
+        sector: true,
+        subtype: true,
       },
     });
 
@@ -336,6 +343,8 @@ export const me = async (req: Request, res: Response, next: NextFunction): Promi
         globalDiscountType: true,
         globalDiscountValue: true,
         cashierCanDiscount: true,
+        sector: true,
+        subtype: true,
       },
     });
 

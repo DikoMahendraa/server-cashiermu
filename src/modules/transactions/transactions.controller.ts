@@ -152,9 +152,11 @@ export const voidTransaction = async (req: Request, res: Response, next: NextFun
 
     await prisma.$transaction(async tx => {
       for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
+        // updateMany + trackStock filter: untracked products (services/unlimited) never get stock added back
+        await tx.product.updateMany({
+          where: { id: item.productId, storeId, trackStock: true },
+          // tracked products only ever sell whole quantities, so this is an integer
+          data: { stock: { increment: Math.round(Number(item.quantity)) } },
         });
       }
 

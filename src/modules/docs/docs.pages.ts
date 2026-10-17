@@ -35,6 +35,7 @@ export const DOC_PAGES: readonly DocPage[] = [
     group: 'guide',
     navTitle: '7. Versioning & releases',
   },
+  { slug: 'sectors', file: 'docs/08-sectors.md', group: 'guide', navTitle: '8. Business sectors' },
   { slug: 'changelog', file: 'CHANGELOG.md', group: 'reference', navTitle: 'Changelog' },
   { slug: 'setup-id', file: 'README.md', group: 'reference', navTitle: 'Setup from scratch (Indonesian)' },
   { slug: 'deployment', file: 'DEPLOYMENT_GUIDE.md', group: 'reference', navTitle: 'Deployment guide' },

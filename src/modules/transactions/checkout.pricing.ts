@@ -20,6 +20,10 @@ export interface PricingProduct {
   id: string;
   name: string;
   sellPrice: number;
+  /** HPP per unit; copied onto each sale line so profit survives later buy-price changes. */
+  buyPrice: number;
+  /** Quantity may be fractional (2.5 kg). Without this, only whole quantities are accepted. */
+  allowDecimalQty: boolean;
   discountEnabled: boolean;
   discountType: string; // 'percent' | 'amount'
   discountValue: number;
@@ -64,6 +68,8 @@ export interface PricedItem {
   productName: string;
   quantity: number;
   unitPrice: number;
+  /** Cost (HPP) per unit at the moment of sale. */
+  costPrice: number;
   subtotal: number;
   note: string;
   selectedVariants: PricedVariant[];
@@ -83,6 +89,13 @@ export interface PricedCart {
 
 // Client and server use the same float formulas; this only absorbs representation noise.
 const PRICE_TOLERANCE = 0.01;
+
+/**
+ * Price of one sale line before discounts. Whole quantities multiply exactly as before; a fractional quantity
+ * (2.333 kg × 7.000) is rounded to a whole Rupiah. The mobile app uses the same rule so totals match.
+ */
+export const lineAmount = (unitPrice: number, quantity: number): number =>
+  Number.isInteger(quantity) ? unitPrice * quantity : Math.round(unitPrice * quantity);
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -180,6 +193,10 @@ export function priceCart(
       throw new CheckoutError(422, 'PRODUCT_UNAVAILABLE', 'Satu atau lebih produk tidak ditemukan atau tidak aktif');
     }
 
+    if (!Number.isInteger(item.quantity) && !product.allowDecimalQty) {
+      throw new CheckoutError(422, 'INVALID_QUANTITY', `Jumlah harus bilangan bulat untuk: ${product.name}`);
+    }
+
     const variants = resolveVariants(product, item.selectedVariants);
     const unitPrice = computeUnitPrice(product, variants, store);
     if (Math.abs(unitPrice - item.unitPrice) > PRICE_TOLERANCE) {
@@ -192,7 +209,7 @@ export function priceCart(
       });
     }
 
-    const lineBase = unitPrice * item.quantity;
+    const lineBase = lineAmount(unitPrice, item.quantity);
     const itemDiscount = item.itemDiscount ?? null;
     const subtotal = itemDiscount ? applyItemDiscount(lineBase, itemDiscount) : lineBase;
 
@@ -201,6 +218,7 @@ export function priceCart(
       productName: product.name,
       quantity: item.quantity,
       unitPrice: round2(unitPrice),
+      costPrice: round2(product.buyPrice),
       subtotal: round2(subtotal),
       note: item.note ?? '',
       selectedVariants: variants,

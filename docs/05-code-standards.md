@@ -63,6 +63,7 @@ Money bugs are the most expensive bugs in a POS.
 - Don't read-then-write for counters/stock. Let the database do `increment`/`decrement`.
 - Select only what you need on big tables; never return `pinHash` or token columns (use `select`).
 - No raw SQL unless you must; if you do, use Prisma's parameterised `$queryRaw` tagged template, never string concatenation.
+- **Raw SQL and dates:** Prisma stores `DateTime` as UTC in `timestamp without time zone` columns. When you compare a JS `Date` inside `$queryRaw`, wrap it as `(${date}::timestamptz AT TIME ZONE 'UTC')` (see `profit.service.ts`); otherwise the result shifts by the database's time zone and the query silently returns nothing. The ORM (`findMany({ where: { createdAt: ... } })`) does not have this problem.
 - Dates are stored in UTC. Business "days" (reports, "today") are computed in the store's timezone (Asia/Jakarta by default) — do not slice `toISOString()` for a day boundary.
 
 ## Errors and logging

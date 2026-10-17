@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import prisma from '../../config/database';
+import { getProfitReport } from './profit.service';
 
 function getQueryStr(req: Request, key: string): string | undefined {
   const val = req.query[key];
@@ -129,7 +131,7 @@ export const getTopProducts = async (req: Request, res: Response, next: NextFunc
         productId: i.productId,
         productName: i.productName,
         sku: i.sku,
-        totalQuantity: i._sum.quantity || 0,
+        totalQuantity: Number(i._sum.quantity ?? 0),
         totalRevenue: Number(i._sum.subtotal || 0),
       })),
     );
@@ -194,6 +196,40 @@ export const getShiftSummary = async (req: Request, res: Response, next: NextFun
       orderBy: { startedAt: 'desc' },
     });
     res.json(shifts);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const profitQuerySchema = z.object({
+  from: z.string().datetime({ offset: true }).optional(),
+  to: z.string().datetime({ offset: true }).optional(),
+  branchId: z.string().uuid().optional(),
+  userId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+/**
+ * GET /reports/profit?from=&to=&branchId=&userId=&limit=
+ * from/to are ISO timestamps (e.g. 2026-10-01T00:00:00+07:00): the app decides where a business day starts.
+ */
+export const getProfit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const parsed = profitQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res
+        .status(422)
+        .json({ code: 'INVALID_QUERY', message: 'Parameter laporan tidak valid', details: parsed.error.flatten() });
+      return;
+    }
+    const { from, to, ...rest } = parsed.data;
+    const report = await getProfitReport(prisma, {
+      storeId: req.user!.storeId,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      ...rest,
+    });
+    res.json(report);
   } catch (err) {
     next(err);
   }

@@ -7,6 +7,55 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-18
+
+> **Catatan upgrade (penting):** rilis ini membawa **3 migration database**. Backup database, lalu jalankan `npx prisma migrate deploy` **sebelum** menjalankan server versi baru. Efeknya pada data yang sudah ada:
+> - `20261018130000_add_cost_snapshot_track_stock_per_store_sku` — kolom baru `TransactionItem.costPrice` (baris penjualan lama diisi harga beli produk **saat ini**, hanya perkiraan untuk riwayat), `Product.trackStock` (produk lama = `true`), dan SKU/barcode menjadi unik **per toko**.
+> - `20261019100000_add_store_sector_product_attributes` — kolom `Store.sector` (toko lama = `general`) dan `Product.attributes` (kosong).
+> - `20261020100000_three_sectors_subtype_decimal_quantity` — enum `BusinessSector` menjadi 3 nilai (toko yang memakai jenis yang sudah dihapus otomatis menjadi `general`), kolom `Store.subtype` (`default`), `Product.allowDecimalQty` (`false`), dan `TransactionItem.quantity` dari `Int` ke `Decimal(12,3)` (nilai lama tetap utuh).
+>
+> Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime (situs dokumentasi `/docs` mati di production kecuali `DOCS_ENABLED=true` + `DOCS_PASSWORD`).
+> **Kompatibilitas app:** semua versi app yang sudah terpasang tetap bisa checkout. App versi 1.4.0 membutuhkan backend ini.
+
+### Added
+
+- **Laporan laba kotor — `GET /reports/profit`** (khusus owner). Filter: `from`, `to` (timestamp ISO, mis. `2026-10-01T00:00:00+07:00`), `branchId`, `userId`, `limit`. Mengembalikan `grossSales`, `discounts`, `netSales`, `cogs` (HPP), `grossProfit`, `marginPct`, pajak/service charge (dilaporkan terpisah, bukan pendapatan), rincian per karyawan, dan produk terlaris berdasarkan laba. Hanya transaksi `paid` yang dihitung.
+- **HPP tersimpan di setiap baris penjualan** (`TransactionItem.costPrice`) saat checkout, sehingga laba tetap benar walau harga beli produk berubah kemudian.
+- **`Product.trackStock`** (default `true`). Jika `false` (jasa / stok tanpa batas): checkout tidak memeriksa maupun mengurangi stok, void tidak mengembalikan stok, dan `PATCH /products/:id/stock` ditolak dengan `422 STOCK_NOT_TRACKED`. `stockStatus` selalu `safe`.
+- Error produk baru: `409 SKU_TAKEN` dan `409 BARCODE_TAKEN`.
+- Test e2e baru (`test/e2e/catalog-profit.e2e.test.ts`, `helpers.ts`) dan akun test kedua (`E2E_EMAIL_2`, `E2E_PHONE_2`) untuk membuktikan isolasi antar toko.
+
+- **Bidang usaha dan jenis usaha per toko.** Tiga bidang usaha: **Retail / Umum** (sama seperti sebelumnya), **Kuliner** (Makanan, Minuman, Makanan & Minuman), dan **Jasa & Layanan** (Servis AC, Laundry, Bengkel Motor/Mobil, Pijat & Refleksi, Percetakan & Fotokopi, Jasa Umum). `Store.sector` (default `general` untuk semua toko lama) dan `Store.subtype` (teks, divalidasi terhadap konfigurasi sehingga menambah jenis baru tidak perlu migration).
+  - Satu konfigurasi (`src/modules/sectors/sector.config.ts`) menentukan istilah yang dipakai app (Produk / Menu / Layanan, termasuk placeholder), satuan, kategori awal, isian tambahan, preset varian, dan **contoh item awal** (mis. "Cuci Kiloan Express", "Tambal Ban Tubeless", "Springbed / Kasur") yang mengisi form kecuali harga. Disajikan lewat **`GET /sectors`** (publik, di-cache 1 jam). Lihat `docs/08-sectors.md`.
+  - `POST /auth/register` menerima `sector` dan `subtype` (opsional; default `general` / `default`) dan membuat kategori awal sesuai jenis usaha; `422 INVALID_SUBTYPE` jika jenis tidak cocok. Login/`/auth/me` mengembalikan `store.sector` dan `store.subtype`; owner bisa mengubahnya lewat `PATCH /store`.
+- **Istilah keranjang, usaha, dan catatan per jenis usaha.** `vocabulary` kini juga berisi `cartNoun` (Keranjang / Pesanan / Daftar Layanan), `businessNoun` (Toko / Usaha), dan `notePlaceholder` (contoh isi catatan per baris, mis. "tanpa pewangi, ada noda di lengan kemeja" untuk Laundry). Jasa & Layanan tidak lagi memakai kata "toko", "keranjang", atau contoh makanan. `GET /sectors` versi 4.
+- **Istilah dan contoh varian per jenis usaha.** Judul bagian, teks contoh, dan placeholder editor varian kini bagian dari `vocabulary` tiap jenis (`variantSection`, `variantHint`, `variantGroupPlaceholder`, `variantOptionPlaceholder`), dan setiap jenis punya preset *Tambah cepat* sendiri (mis. Laundry: Pewangi; Servis AC: Kapasitas AC; Bengkel: Jenis Kendaraan; Percetakan: Finishing, Jenis Kertas). Jasa & Layanan tidak lagi menampilkan contoh makanan seperti "level pedas, topping". `GET /sectors` versi 3.
+- **`Product.attributes`** (JSON): isian khusus jenis usaha (mis. laundry: kecepatan, estimasi selesai; bengkel: jasa atau sparepart, merek, nomor part), divalidasi ketat di server. Isian tidak dikenal ditolak; isian yang tersembunyi (`showWhen`) dibuang. Error: `422 INVALID_ATTRIBUTES` dengan pesan per isian. Bengkel, servis AC, dan percetakan membedakan **jasa** (tanpa stok) dan **sparepart/barang** (stok dilacak).
+- **Jumlah desimal (kg, m², jam).** `Product.allowDecimalQty` dan `TransactionItem.quantity` kini `Decimal(12,3)`: laundry bisa menjual 2,5 kg. Hanya untuk item tanpa pelacakan stok (`422 DECIMAL_NEEDS_UNTRACKED_STOCK`); pecahan untuk item yang tidak mengizinkannya ditolak (`422 INVALID_QUANTITY`); maksimal 3 angka di belakang koma. Baris dengan jumlah pecahan dibulatkan ke Rupiah utuh (2,333 kg × 7.000 = 16.331); baris bulat dihitung persis seperti sebelumnya.
+- **Ubah varian produk lewat `PATCH /products/:id`** (`variantGroups` berisi daftar lengkap; id yang tidak berubah dipertahankan agar keranjang/struk tetap valid; id milik produk lain ditolak dengan `422 INVALID_VARIANT_ID`).
+- `AppError(status, code, message, details?)` di `src/utils/app-error.ts`, ditangani oleh `errorHandler`.
+- Test: validasi dan integritas konfigurasi (unit; setiap contoh item divalidasi terhadap jenisnya sendiri), jumlah desimal (unit + e2e), e2e jenis usaha/atribut/varian (`test/e2e/sectors.e2e.test.ts`), akun test ketiga (`E2E_EMAIL_3`, `E2E_PHONE_3`), dan cache token e2e agar tidak terkena rate limit login.
+
+### Changed
+
+- **SKU dan barcode kini unik per toko**, bukan global (toko berbeda boleh memakai SKU/barcode yang sama).
+- Void transaksi hanya mengembalikan stok untuk produk yang `trackStock = true`.
+- Migration: `20261018130000_add_cost_snapshot_track_stock_per_store_sku`
+  - **Backfill:** baris penjualan lama diisi dengan harga beli produk **saat ini**. Ini hanya perkiraan untuk riwayat (harga beli saat itu tidak pernah disimpan); semua penjualan baru memakai HPP yang sebenarnya.
+  - Kompatibilitas app: semua versi app tetap jalan. Produk lama otomatis `trackStock = true`. Toggle "Lacak stok" dan kartu laba ada di app versi terbaru.
+
+- **`GET /products` kini mengembalikan `variantGroups` beserta opsinya.** Sebelumnya varian tidak ikut terkirim sehingga pemilih varian di kasir tidak pernah muncul.
+- `trackStock` pada `POST /products` kini opsional: jika tidak dikirim, dipakai default sector (jasa = tidak melacak stok; Kecantikan "Layanan" = tidak melacak stok).
+- Checkout: `selectedVariants` cukup berisi `optionId`; field lain diterima tapi diabaikan (server selalu menghitung harga varian dari database).
+- `PATCH /products/:id` dan `POST /products` menerima `allowDecimalQty`; `GET /reports/top-products` dan `GET /reports/profit` mengembalikan jumlah desimal (angka, bukan string).
+- Migration: `20261019100000_add_store_sector_product_attributes` dan `20261020100000_three_sectors_subtype_decimal_quantity`
+  - Migration kedua menyusutkan enum `BusinessSector` menjadi tiga nilai; toko yang memakai jenis yang dihapus (`fashion`, `beauty`, `craft`, belum pernah dirilis) otomatis menjadi `general`, produknya tidak berubah. Kolom `TransactionItem.quantity` berubah dari `Int` ke `Decimal(12,3)` (nilai lama tetap utuh).
+  - Kompatibilitas app: semua versi app tetap jalan. Toko lama otomatis `general` / `default` (tanpa isian tambahan); app lama yang tidak mengirim `sector`/`subtype`/`attributes` tetap bisa mendaftar dan membuat produk. Pilihan jenis usaha, istilah dinamis, form produk dinamis, contoh item, editor varian, dan input jumlah desimal ada di app versi terbaru.
+
+### Fixed
+
+- **`categoryId` pada produk kini harus milik toko yang sama** (`422 CATEGORY_NOT_FOUND`). Sebelumnya produk bisa ditautkan ke kategori toko lain.
+
 ## [1.3.0] — 2026-10-18
 
 > **Catatan upgrade:** rilis ini membawa 2 migration database. Jalankan `npx prisma migrate deploy` (setelah backup) **sebelum** menjalankan server versi baru. Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime.

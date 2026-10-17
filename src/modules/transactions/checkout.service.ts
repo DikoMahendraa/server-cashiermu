@@ -119,7 +119,7 @@ export async function createCheckout(
     throw new CheckoutError(422, 'PRODUCT_UNAVAILABLE', 'Satu atau lebih produk tidak ditemukan atau tidak aktif');
   }
 
-  const productMap = new Map<string, PricingProduct & { sku: string; stock: number }>(
+  const productMap = new Map<string, PricingProduct & { sku: string; stock: number; trackStock: boolean }>(
     products.map(p => [
       p.id,
       {
@@ -127,6 +127,9 @@ export async function createCheckout(
         name: p.name,
         sku: p.sku,
         stock: p.stock,
+        trackStock: p.trackStock,
+        allowDecimalQty: p.allowDecimalQty,
+        buyPrice: Number(p.buyPrice),
         sellPrice: Number(p.sellPrice),
         discountEnabled: p.discountEnabled,
         discountType: p.discountType,
@@ -159,8 +162,11 @@ export async function createCheckout(
 
   const settled = settlePayments(body.payments, cart.grandTotal);
 
+  // Only products that track stock are checked and decremented. Unlimited items and services
+  // (trackStock = false) can always be sold, whatever their `stock` column says.
   const qtyByProduct = new Map<string, number>();
   for (const item of cart.items) {
+    if (!productMap.get(item.productId)!.trackStock) continue;
     qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + item.quantity);
   }
   // Early, friendly check; the conditional decrement inside the DB transaction is the real guard.
@@ -235,6 +241,7 @@ export async function createCheckout(
                 sku: productMap.get(item.productId)!.sku,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                costPrice: item.costPrice,
                 subtotal: item.subtotal,
                 note: item.note,
                 selectedVariants: item.selectedVariants as unknown as Prisma.InputJsonValue,
