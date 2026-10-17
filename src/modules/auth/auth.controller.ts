@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../../config/database';
@@ -39,7 +40,9 @@ function signAccessToken(payload: object): string {
 }
 
 function signRefreshToken(payload: object): string {
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions);
+  // jwtid makes each token unique: without it, two logins in the same second produce
+  // identical tokens and the unique constraint on RefreshToken.token rejects the second.
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN, jwtid: randomUUID() } as jwt.SignOptions);
 }
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

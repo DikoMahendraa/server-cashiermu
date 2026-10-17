@@ -1,173 +1,37 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
-import { generateInvoiceNumber } from '../../utils/invoice';
-import { CreateTransactionDto, VoidTransactionDto } from './transactions.schema';
+import { CreateTransactionDto, VoidTransactionDto, idempotencyKeySchema } from './transactions.schema';
+import { createCheckout } from './checkout.service';
+import { CheckoutError } from './checkout.pricing';
 
 export const createTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const body = req.body as CreateTransactionDto;
-    const userId = req.user!.userId;
-    const storeId = req.user!.storeId;
-
-    // Fetch store first — needed for shift validation + tax/service charge rates
-    const store = await prisma.store.findUnique({ where: { id: storeId } });
-    if (!store) {
-      res.status(404).json({ message: 'Store not found' });
-      return;
-    }
-
-    // Shift validation — only enforce when shiftEnabled = true
-    let resolvedBranchId: string | null = body.branchId ?? req.user!.branchId;
-    if (store.shiftEnabled) {
-      if (!body.shiftId) {
-        res.status(422).json({ message: 'Shift wajib dibuka terlebih dahulu sebelum transaksi' });
+    const rawKey = req.header('Idempotency-Key');
+    let idempotencyKey: string | undefined;
+    if (rawKey !== undefined) {
+      const parsed = idempotencyKeySchema.safeParse(rawKey);
+      if (!parsed.success) {
+        res.status(422).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key harus 8-128 karakter (huruf, angka, - atau _)' });
         return;
       }
-      const shift = await prisma.shift.findUnique({ where: { id: body.shiftId, storeId } });
-      if (!shift || shift.status !== 'open') {
-        res.status(422).json({ message: 'Shift tidak ditemukan atau sudah ditutup' });
-        return;
-      }
-      resolvedBranchId = shift.branchId;
+      idempotencyKey = parsed.data;
     }
 
-    if (!resolvedBranchId) {
-      res.status(422).json({ message: 'Kasir tidak memiliki cabang yang ditentukan. Hubungi admin untuk mengatur cabang.' });
-      return;
-    }
+    const { transaction, replayed } = await createCheckout(
+      prisma,
+      { userId: req.user!.userId, storeId: req.user!.storeId, role: req.user!.role, branchId: req.user!.branchId },
+      req.body as CreateTransactionDto,
+      idempotencyKey,
+    );
 
-    const productIds = body.items.map(i => i.productId);
-    const products = await prisma.product.findMany({ where: { id: { in: productIds }, storeId, isActive: true } });
-    if (products.length !== productIds.length) {
-      res.status(422).json({ message: 'One or more products not found or inactive' });
-      return;
-    }
-
-    for (const item of body.items) {
-      const product = products.find(p => p.id === item.productId)!;
-      if (product.stock < item.quantity) {
-        res.status(422).json({ message: `Insufficient stock for product: ${product.name}` });
-        return;
-      }
-    }
-
-    const taxRate = store.taxEnabled ? Number(store.taxRate) : 0;
-    const serviceChargeRate = store.serviceChargeEnabled ? Number(store.serviceChargeRate) : 0;
-
-    // Gunakan subtotal per item dari frontend (sudah termasuk item discount jika ada)
-    const subtotal = body.items.reduce((sum, item) => sum + (item.subtotal ?? item.unitPrice * item.quantity), 0);
-    let discountAmount = 0;
-    if (body.discount) {
-      discountAmount = body.discount.type === 'percent'
-        ? (subtotal * body.discount.value) / 100
-        : body.discount.value;
-    }
-
-    const taxableBase = subtotal - discountAmount;
-    const taxAmount = taxableBase * taxRate;
-    const serviceChargeAmount = taxableBase * serviceChargeRate;
-    const grandTotal = taxableBase + taxAmount + serviceChargeAmount;
-    const cashPaid = body.cashPaid || 0;
-    const changeAmount = Math.max(0, cashPaid - grandTotal);
-
-    // Retry up to 3 times on invoice number collision (P2002 unique constraint)
-    let transaction: Awaited<ReturnType<typeof prisma.$transaction>> | undefined;
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const invoiceNumber = await generateInvoiceNumber(storeId);
-      try {
-        transaction = await prisma.$transaction(async tx => {
-          for (const item of body.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.quantity } },
-            });
-          }
-
-          const newTx = await tx.transaction.create({
-            data: {
-              storeId,
-              invoiceNumber,
-              shiftId: body.shiftId ?? null,
-              userId,
-              branchId: resolvedBranchId,
-              subtotal,
-              discountType: body.discount?.type,
-              discountValue: body.discount?.value,
-              discountLabel: body.discount?.label,
-              discountCode: body.discount?.code,
-              discountAmount,
-              taxRate,
-              taxAmount,
-              serviceChargeRate,
-              serviceChargeAmount,
-              grandTotal,
-              cashPaid,
-              changeAmount,
-              customerName: body.customerName,
-              note: body.note,
-              items: {
-                create: body.items.map(item => {
-                  const product = products.find(p => p.id === item.productId)!;
-                  return {
-                    productId: item.productId,
-                    productName: product.name,
-                    sku: product.sku,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    subtotal: item.subtotal ?? item.unitPrice * item.quantity,
-                    note: item.note ?? '',
-                    selectedVariants: item.selectedVariants ?? [],
-                    discountType:  item.itemDiscount?.type  ?? null,
-                    discountValue: item.itemDiscount?.value ?? null,
-                    discountLabel: item.itemDiscount?.label ?? null,
-                  };
-                }),
-              },
-              payments: {
-                create: body.payments.map(p => ({
-                  method: p.method,
-                  amount: p.amount,
-                  reference: p.reference,
-                })),
-              },
-            },
-            include: { items: true, payments: true, user: { select: { id: true, name: true } } },
-          });
-
-          if (body.shiftId) {
-            const cashPayment = body.payments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0);
-            const digitalPayment = body.payments.filter(p => p.method !== 'cash').reduce((s, p) => s + p.amount, 0);
-            await tx.shift.update({
-              where: { id: body.shiftId },
-              data: {
-                cashSalesTotal: { increment: cashPayment },
-                digitalSalesTotal: { increment: digitalPayment },
-                transactionCount: { increment: 1 },
-              },
-            });
-          }
-
-          return newTx;
-        });
-
-        break; // success — exit retry loop
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-          lastError = err;
-          continue; // retry with a new invoice number
-        }
-        throw err; // non-collision error — re-throw immediately
-      }
-    }
-
-    if (!transaction) throw lastError;
-
-    res.status(201).json(transaction);
+    if (replayed) res.setHeader('Idempotent-Replayed', 'true');
+    res.status(replayed ? 200 : 201).json(transaction);
   } catch (err) {
+    if (err instanceof CheckoutError) {
+      res.status(err.status).json({ code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) });
+      return;
+    }
     next(err);
   }
 };

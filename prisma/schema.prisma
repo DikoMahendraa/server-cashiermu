@@ -209,7 +209,7 @@ enum ShiftStatus {
 model Transaction {
   id                  String            @id @default(uuid())
   storeId             String
-  invoiceNumber       String            @unique
+  invoiceNumber       String
   shiftId             String?
   userId              String
   branchId            String
@@ -232,6 +232,8 @@ model Transaction {
   voidedAt            DateTime?
   voidedBy            String?
   note                String            @default("")
+  // Client-generated key per checkout attempt; makes POST /transactions safe to retry.
+  idempotencyKey      String?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -241,6 +243,10 @@ model Transaction {
   branch   Branch            @relation(fields: [branchId], references: [id])
   items    TransactionItem[]
   payments PaymentEntry[]
+
+  // Invoice sequences are per store (INV-YYYYMMDD-0001 restarts for every store).
+  @@unique([storeId, invoiceNumber])
+  @@unique([storeId, idempotencyKey])
 }
 
 enum TransactionStatus {
