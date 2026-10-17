@@ -1,0 +1,2 @@
+# Slower checks run before code leaves your machine
+npm run typecheck && npm test

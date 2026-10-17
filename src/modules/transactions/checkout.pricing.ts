@@ -123,7 +123,11 @@ function resolveVariants(product: PricingProduct, selected: { optionId: string }
     seen.add(optionId);
     const count = (perGroup.get(opt.groupId) ?? 0) + 1;
     if (count > 1 && !opt.multiSelect) {
-      throw new CheckoutError(422, 'INVALID_VARIANT', `Hanya boleh pilih satu ${opt.groupName} untuk produk: ${product.name}`);
+      throw new CheckoutError(
+        422,
+        'INVALID_VARIANT',
+        `Hanya boleh pilih satu ${opt.groupName} untuk produk: ${product.name}`,
+      );
     }
     perGroup.set(opt.groupId, count);
     const { multiSelect: _m, ...variant } = opt;
@@ -162,7 +166,13 @@ export function priceCart(
   cartDiscount?: DiscountInput | null,
 ): PricedCart {
   const priced: PricedItem[] = [];
-  const mismatches: { index: number; productId: string; productName: string; clientUnitPrice: number; unitPrice: number }[] = [];
+  const mismatches: {
+    index: number;
+    productId: string;
+    productName: string;
+    clientUnitPrice: number;
+    unitPrice: number;
+  }[] = [];
 
   for (const [index, item] of items.entries()) {
     const product = products.get(item.productId);
@@ -173,7 +183,13 @@ export function priceCart(
     const variants = resolveVariants(product, item.selectedVariants);
     const unitPrice = computeUnitPrice(product, variants, store);
     if (Math.abs(unitPrice - item.unitPrice) > PRICE_TOLERANCE) {
-      mismatches.push({ index, productId: product.id, productName: product.name, clientUnitPrice: item.unitPrice, unitPrice: round2(unitPrice) });
+      mismatches.push({
+        index,
+        productId: product.id,
+        productName: product.name,
+        clientUnitPrice: item.unitPrice,
+        unitPrice: round2(unitPrice),
+      });
     }
 
     const lineBase = unitPrice * item.quantity;
@@ -193,16 +209,22 @@ export function priceCart(
   }
 
   if (mismatches.length > 0) {
-    throw new CheckoutError(409, 'PRICE_CHANGED', 'Harga produk telah berubah. Muat ulang produk lalu coba lagi.', mismatches);
+    throw new CheckoutError(
+      409,
+      'PRICE_CHANGED',
+      'Harga produk telah berubah. Muat ulang produk lalu coba lagi.',
+      mismatches,
+    );
   }
 
   const subtotal = round2(priced.reduce((sum, i) => sum + i.subtotal, 0));
 
   let discountAmount = 0;
   if (cartDiscount) {
-    discountAmount = cartDiscount.type === 'percent'
-      ? Math.floor((subtotal * Math.min(cartDiscount.value, 100)) / 100)
-      : Math.min(cartDiscount.value, subtotal);
+    discountAmount =
+      cartDiscount.type === 'percent'
+        ? Math.floor((subtotal * Math.min(cartDiscount.value, 100)) / 100)
+        : Math.min(cartDiscount.value, subtotal);
   }
 
   const taxableBase = subtotal - discountAmount;

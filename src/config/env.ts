@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.PORT || '3000', 10),
@@ -12,4 +14,9 @@ export const env = {
   FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || 'http://localhost:8081',
   MAX_LOGIN_ATTEMPTS: parseInt(process.env.MAX_LOGIN_ATTEMPTS || '5', 10),
   LOGIN_LOCKOUT_MINUTES: parseInt(process.env.LOGIN_LOCKOUT_MINUTES || '5', 10),
+  // Developer docs site at /docs: on in development, off in production unless DOCS_ENABLED=true.
+  // When enabled in production a DOCS_PASSWORD is required (HTTP Basic auth, user = DOCS_USER).
+  DOCS_ENABLED: process.env.DOCS_ENABLED ? process.env.DOCS_ENABLED === 'true' : !isProduction,
+  DOCS_USER: process.env.DOCS_USER || 'docs',
+  DOCS_PASSWORD: process.env.DOCS_PASSWORD || '',
 };

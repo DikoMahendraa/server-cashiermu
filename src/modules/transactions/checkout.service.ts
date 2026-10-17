@@ -1,12 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { generateInvoiceNumber } from '../../utils/invoice';
 import { CreateTransactionDto } from './transactions.schema';
-import {
-  CheckoutError,
-  PricingProduct,
-  priceCart,
-  settlePayments,
-} from './checkout.pricing';
+import { CheckoutError, PricingProduct, priceCart, settlePayments } from './checkout.pricing';
 
 export interface CheckoutContext {
   userId: string;
@@ -37,7 +32,11 @@ function uniqueTarget(err: unknown): string | null {
   return null;
 }
 
-async function findByIdempotencyKey(db: PrismaClient, ctx: CheckoutContext, key: string): Promise<CheckoutResult | null> {
+async function findByIdempotencyKey(
+  db: PrismaClient,
+  ctx: CheckoutContext,
+  key: string,
+): Promise<CheckoutResult | null> {
   const existing = await db.transaction.findUnique({
     where: { storeId_idempotencyKey: { storeId: ctx.storeId, idempotencyKey: key } },
     include: TRANSACTION_INCLUDE,
@@ -73,7 +72,11 @@ async function resolveShiftAndBranch(
 
   const branchId = body.branchId ?? ctx.branchId;
   if (!branchId) {
-    throw new CheckoutError(422, 'BRANCH_REQUIRED', 'Kasir tidak memiliki cabang yang ditentukan. Hubungi admin untuk mengatur cabang.');
+    throw new CheckoutError(
+      422,
+      'BRANCH_REQUIRED',
+      'Kasir tidak memiliki cabang yang ditentukan. Hubungi admin untuk mengatur cabang.',
+    );
   }
   if (ctx.role !== 'owner' && ctx.branchId && branchId !== ctx.branchId) {
     throw new CheckoutError(403, 'BRANCH_NOT_ALLOWED', 'Kasir hanya boleh bertransaksi di cabangnya sendiri');
@@ -117,34 +120,42 @@ export async function createCheckout(
   }
 
   const productMap = new Map<string, PricingProduct & { sku: string; stock: number }>(
-    products.map(p => [p.id, {
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      stock: p.stock,
-      sellPrice: Number(p.sellPrice),
-      discountEnabled: p.discountEnabled,
-      discountType: p.discountType,
-      discountValue: Number(p.discountValue),
-      variantGroups: p.variantGroups.map(g => ({
-        id: g.id,
-        name: g.name,
-        required: g.required,
-        multiSelect: g.multiSelect,
-        options: g.options.map(o => ({ id: o.id, label: o.label, priceModifier: Number(o.priceModifier) })),
-      })),
-    }]),
+    products.map(p => [
+      p.id,
+      {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        stock: p.stock,
+        sellPrice: Number(p.sellPrice),
+        discountEnabled: p.discountEnabled,
+        discountType: p.discountType,
+        discountValue: Number(p.discountValue),
+        variantGroups: p.variantGroups.map(g => ({
+          id: g.id,
+          name: g.name,
+          required: g.required,
+          multiSelect: g.multiSelect,
+          options: g.options.map(o => ({ id: o.id, label: o.label, priceModifier: Number(o.priceModifier) })),
+        })),
+      },
+    ]),
   );
 
-  const cart = priceCart(body.items, productMap, {
-    taxEnabled: store.taxEnabled,
-    taxRate: Number(store.taxRate),
-    serviceChargeEnabled: store.serviceChargeEnabled,
-    serviceChargeRate: Number(store.serviceChargeRate),
-    globalDiscountEnabled: store.globalDiscountEnabled,
-    globalDiscountType: store.globalDiscountType,
-    globalDiscountValue: Number(store.globalDiscountValue),
-  }, body.discount);
+  const cart = priceCart(
+    body.items,
+    productMap,
+    {
+      taxEnabled: store.taxEnabled,
+      taxRate: Number(store.taxRate),
+      serviceChargeEnabled: store.serviceChargeEnabled,
+      serviceChargeRate: Number(store.serviceChargeRate),
+      globalDiscountEnabled: store.globalDiscountEnabled,
+      globalDiscountType: store.globalDiscountType,
+      globalDiscountValue: Number(store.globalDiscountValue),
+    },
+    body.discount,
+  );
 
   const settled = settlePayments(body.payments, cart.grandTotal);
 
@@ -172,7 +183,11 @@ export async function createCheckout(
             data: { stock: { decrement: qty } },
           });
           if (count === 0) {
-            throw new CheckoutError(422, 'INSUFFICIENT_STOCK', `Stok tidak cukup untuk produk: ${productMap.get(productId)!.name}`);
+            throw new CheckoutError(
+              422,
+              'INSUFFICIENT_STOCK',
+              `Stok tidak cukup untuk produk: ${productMap.get(productId)!.name}`,
+            );
           }
         }
 

@@ -18,9 +18,9 @@ export const updateStoreSchema = z.object({
   shiftRequireOpeningBalance: z.boolean().optional(),
   shiftBranchSelection: z.boolean().optional(),
   globalDiscountEnabled: z.boolean().optional(),
-  globalDiscountType:    z.enum(['percent', 'amount']).optional(),
-  globalDiscountValue:   z.coerce.number().min(0).optional(),
-  cashierCanDiscount:    z.boolean().optional(),
+  globalDiscountType: z.enum(['percent', 'amount']).optional(),
+  globalDiscountValue: z.coerce.number().min(0).optional(),
+  cashierCanDiscount: z.boolean().optional(),
 });
 
 export type UpdateStoreDto = z.infer<typeof updateStoreSchema>;

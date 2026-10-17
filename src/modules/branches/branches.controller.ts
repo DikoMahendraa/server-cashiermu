@@ -44,7 +44,10 @@ export const toggleStatus = async (req: Request, res: Response, next: NextFuncti
     const storeId = req.user!.storeId;
 
     const branch = await prisma.branch.findUnique({ where: { id, storeId } });
-    if (!branch) { res.status(404).json({ message: 'Branch not found' }); return; }
+    if (!branch) {
+      res.status(404).json({ message: 'Branch not found' });
+      return;
+    }
 
     const updated = await prisma.branch.update({
       where: { id, storeId },

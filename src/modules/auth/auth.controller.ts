@@ -10,8 +10,8 @@ const loginAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
 
 const DEFAULT_CATEGORIES = [
   { name: 'Makanan', icon: 'utensils', color: '#f97316', sortOrder: 1 },
-  { name: 'Minuman', icon: 'coffee',   color: '#3b82f6', sortOrder: 2 },
-  { name: 'Lainnya', icon: 'package',  color: '#8b5cf6', sortOrder: 3 },
+  { name: 'Minuman', icon: 'coffee', color: '#3b82f6', sortOrder: 2 },
+  { name: 'Lainnya', icon: 'package', color: '#8b5cf6', sortOrder: 3 },
 ];
 
 function checkLock(key: string): boolean {
@@ -42,7 +42,10 @@ function signAccessToken(payload: object): string {
 function signRefreshToken(payload: object): string {
   // jwtid makes each token unique: without it, two logins in the same second produce
   // identical tokens and the unique constraint on RefreshToken.token rejects the second.
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN, jwtid: randomUUID() } as jwt.SignOptions);
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+    expiresIn: env.JWT_REFRESH_EXPIRES_IN,
+    jwtid: randomUUID(),
+  } as jwt.SignOptions);
 }
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -192,7 +195,16 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
     });
 
     res.json({
-      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, branchId: user.branchId, avatarUrl: user.avatarUrl, storeId: user.storeId },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        branchId: user.branchId,
+        avatarUrl: user.avatarUrl,
+        storeId: user.storeId,
+      },
       store,
       requireShift,
       activeShift,
@@ -228,7 +240,12 @@ export const refresh = async (req: Request, res: Response, next: NextFunction): 
       return;
     }
 
-    const accessToken = signAccessToken({ userId: user.id, role: user.role, branchId: user.branchId, storeId: user.storeId });
+    const accessToken = signAccessToken({
+      userId: user.id,
+      role: user.role,
+      branchId: user.branchId,
+      storeId: user.storeId,
+    });
     res.json({ accessToken });
   } catch (err) {
     next(err);
@@ -261,7 +278,7 @@ export const updateMe = async (req: Request, res: Response, next: NextFunction):
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
-        ...(name  !== undefined ? { name }  : {}),
+        ...(name !== undefined ? { name } : {}),
         ...(email !== undefined ? { email } : {}),
         ...(phone !== undefined ? { phone } : {}),
       },
@@ -278,7 +295,17 @@ export const me = async (req: Request, res: Response, next: NextFunction): Promi
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
-      select: { id: true, name: true, email: true, phone: true, role: true, branchId: true, storeId: true, avatarUrl: true, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        branchId: true,
+        storeId: true,
+        avatarUrl: true,
+        isActive: true,
+      },
     });
     if (!user) {
       res.status(404).json({ message: 'User not found' });

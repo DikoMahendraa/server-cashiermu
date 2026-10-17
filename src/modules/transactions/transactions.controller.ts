@@ -12,7 +12,10 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
     if (rawKey !== undefined) {
       const parsed = idempotencyKeySchema.safeParse(rawKey);
       if (!parsed.success) {
-        res.status(422).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key harus 8-128 karakter (huruf, angka, - atau _)' });
+        res.status(422).json({
+          code: 'INVALID_IDEMPOTENCY_KEY',
+          message: 'Idempotency-Key harus 8-128 karakter (huruf, angka, - atau _)',
+        });
         return;
       }
       idempotencyKey = parsed.data;
@@ -29,7 +32,9 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
     res.status(replayed ? 200 : 201).json(transaction);
   } catch (err) {
     if (err instanceof CheckoutError) {
-      res.status(err.status).json({ code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) });
+      res
+        .status(err.status)
+        .json({ code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) });
       return;
     }
     next(err);
@@ -38,33 +43,42 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
 
 export const listTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const storeId  = req.user!.storeId;
-    const role     = req.user!.role;
-    const selfId   = req.user!.userId;
+    const storeId = req.user!.storeId;
+    const role = req.user!.role;
+    const selfId = req.user!.userId;
 
-    const shiftId  = typeof req.query['shiftId']  === 'string' ? req.query['shiftId']  : undefined;
+    const shiftId = typeof req.query['shiftId'] === 'string' ? req.query['shiftId'] : undefined;
     const branchId = typeof req.query['branchId'] === 'string' ? req.query['branchId'] : undefined;
-    const status   = typeof req.query['status']   === 'string' ? req.query['status'] as 'paid' | 'voided' | 'pending' : undefined;
-    const from     = typeof req.query['from']     === 'string' ? req.query['from']     : undefined;
-    const to       = typeof req.query['to']       === 'string' ? req.query['to']       : undefined;
-    const search   = typeof req.query['search']   === 'string' ? req.query['search']   : undefined;
-    const sort     = req.query['sort'] === 'asc' ? 'asc' : 'desc';
+    const status =
+      typeof req.query['status'] === 'string' ? (req.query['status'] as 'paid' | 'voided' | 'pending') : undefined;
+    const from = typeof req.query['from'] === 'string' ? req.query['from'] : undefined;
+    const to = typeof req.query['to'] === 'string' ? req.query['to'] : undefined;
+    const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
+    const sort = req.query['sort'] === 'asc' ? 'asc' : 'desc';
 
     // Cashier hanya boleh lihat transaksi miliknya sendiri.
     // Owner boleh filter per-user via query param, atau lihat semua.
-    const userIdFilter = role === 'owner'
-      ? (typeof req.query['userId'] === 'string' ? req.query['userId'] : undefined)
-      : selfId;
+    const userIdFilter =
+      role === 'owner' ? (typeof req.query['userId'] === 'string' ? req.query['userId'] : undefined) : selfId;
 
     const transactions = await prisma.transaction.findMany({
       where: {
         storeId,
         ...(userIdFilter ? { userId: userIdFilter } : {}),
-        ...(shiftId  ? { shiftId }  : {}),
+        ...(shiftId ? { shiftId } : {}),
         ...(branchId ? { branchId } : {}),
-        ...(status   ? { status }   : {}),
-        ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
-        ...(search ? { OR: [{ invoiceNumber: { contains: search, mode: 'insensitive' } }, { customerName: { contains: search, mode: 'insensitive' } }] } : {}),
+        ...(status ? { status } : {}),
+        ...(from || to
+          ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+          : {}),
+        ...(search
+          ? {
+              OR: [
+                { invoiceNumber: { contains: search, mode: 'insensitive' } },
+                { customerName: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
       },
       include: {
         user: { select: { id: true, name: true } },
@@ -92,7 +106,10 @@ export const getTransaction = async (req: Request, res: Response, next: NextFunc
         payments: true,
       },
     });
-    if (!transaction) { res.status(404).json({ message: 'Transaction not found' }); return; }
+    if (!transaction) {
+      res.status(404).json({ message: 'Transaction not found' });
+      return;
+    }
     res.json(transaction);
   } catch (err) {
     next(err);
@@ -106,17 +123,29 @@ export const voidTransaction = async (req: Request, res: Response, next: NextFun
     const storeId = req.user!.storeId;
 
     const owner = await prisma.user.findFirst({ where: { role: 'owner', storeId, isActive: true } });
-    if (!owner) { res.status(404).json({ message: 'Owner not found' }); return; }
+    if (!owner) {
+      res.status(404).json({ message: 'Owner not found' });
+      return;
+    }
 
     const pinMatch = await bcrypt.compare(ownerPin, owner.pinHash);
-    if (!pinMatch) { res.status(401).json({ message: 'Invalid owner PIN' }); return; }
+    if (!pinMatch) {
+      res.status(401).json({ message: 'Invalid owner PIN' });
+      return;
+    }
 
     const txRecord = await prisma.transaction.findUnique({
       where: { id, storeId },
       include: { items: true, payments: true },
     });
-    if (!txRecord) { res.status(404).json({ message: 'Transaction not found' }); return; }
-    if (txRecord.status === 'voided') { res.status(400).json({ message: 'Transaction already voided' }); return; }
+    if (!txRecord) {
+      res.status(404).json({ message: 'Transaction not found' });
+      return;
+    }
+    if (txRecord.status === 'voided') {
+      res.status(400).json({ message: 'Transaction already voided' });
+      return;
+    }
 
     const { items, payments, shiftId } = txRecord;
     const ownerName = owner.name;

@@ -73,7 +73,10 @@ export const getProduct = async (req: Request, res: Response, next: NextFunction
         category: true,
       },
     });
-    if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
+    if (!product) {
+      res.status(404).json({ message: 'Product not found' });
+      return;
+    }
     res.json({ ...product, stockStatus: stockStatus(product.stock, product.minStock) });
   } catch (err) {
     next(err);
@@ -101,10 +104,16 @@ export const adjustStock = async (req: Request, res: Response, next: NextFunctio
     const { adjustment } = req.body as AdjustStockDto;
 
     const product = await prisma.product.findUnique({ where: { id, storeId } });
-    if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
+    if (!product) {
+      res.status(404).json({ message: 'Product not found' });
+      return;
+    }
 
     const newStock = product.stock + adjustment;
-    if (newStock < 0) { res.status(422).json({ message: 'Insufficient stock' }); return; }
+    if (newStock < 0) {
+      res.status(422).json({ message: 'Insufficient stock' });
+      return;
+    }
 
     const updated = await prisma.product.update({
       where: { id, storeId },

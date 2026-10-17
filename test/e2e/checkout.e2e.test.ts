@@ -45,7 +45,13 @@ let openedShiftHere = false;
 const PRICE = 15000;
 
 const line = (unitPrice = PRICE, quantity = 1) => ({
-  productId, quantity, unitPrice, subtotal: unitPrice * quantity, note: '', selectedVariants: [], itemDiscount: null,
+  productId,
+  quantity,
+  unitPrice,
+  subtotal: unitPrice * quantity,
+  note: '',
+  selectedVariants: [],
+  itemDiscount: null,
 });
 const sale = (items: unknown[], payments: unknown[]) => ({ shiftId, items, payments, customerName: '', note: '' });
 
@@ -58,7 +64,12 @@ beforeAll(async () => {
   let login = await call('POST', '/auth/login', { credential: env.email, pin: env.pin });
   if (login.status === 401) {
     const reg = await call('POST', '/auth/register', {
-      storeName: 'E2E Test Store', ownerName: 'E2E Owner', email: env.email, phone: env.phone, pin: env.pin, pinConfirm: env.pin,
+      storeName: 'E2E Test Store',
+      ownerName: 'E2E Owner',
+      email: env.email,
+      phone: env.phone,
+      pin: env.pin,
+      pinConfirm: env.pin,
     });
     expect(reg.status, JSON.stringify(reg.data)).toBe(201);
     login = await call('POST', '/auth/login', { credential: env.email, pin: env.pin });
@@ -68,7 +79,12 @@ beforeAll(async () => {
   expect(login.data.store.name).toBe('E2E Test Store'); // guard: never run against a real store
 
   // Known store config so totals are predictable.
-  const store = await call('PATCH', '/store', { taxEnabled: false, serviceChargeEnabled: false, globalDiscountEnabled: false, shiftEnabled: true });
+  const store = await call('PATCH', '/store', {
+    taxEnabled: false,
+    serviceChargeEnabled: false,
+    globalDiscountEnabled: false,
+    shiftEnabled: true,
+  });
   expect(store.status).toBe(200);
 
   const current = await call('GET', '/shifts/current');
@@ -76,7 +92,11 @@ beforeAll(async () => {
     shiftId = current.data.id;
   } else {
     const branches = await call('GET', '/branches');
-    const opened = await call('POST', '/shifts/open', { type: 'pagi', openingBalance: 0, branchId: branches.data[0].id });
+    const opened = await call('POST', '/shifts/open', {
+      type: 'pagi',
+      openingBalance: 0,
+      branchId: branches.data[0].id,
+    });
     expect(opened.status, JSON.stringify(opened.data)).toBe(201);
     shiftId = opened.data.id;
     openedShiftHere = true;
@@ -84,8 +104,12 @@ beforeAll(async () => {
 
   const categories = await call('GET', '/categories');
   const product = await call('POST', '/products', {
-    name: 'E2E Kopi', sku: `E2E-${randomUUID().slice(0, 8)}`, categoryId: categories.data[0].id,
-    buyPrice: 8000, sellPrice: PRICE, stock: 10,
+    name: 'E2E Kopi',
+    sku: `E2E-${randomUUID().slice(0, 8)}`,
+    categoryId: categories.data[0].id,
+    buyPrice: 8000,
+    sellPrice: PRICE,
+    stock: 10,
   });
   expect(product.status, JSON.stringify(product.data)).toBe(201);
   productId = product.data.id;
@@ -99,7 +123,12 @@ afterAll(async () => {
 describe('checkout e2e', () => {
   it('cash sale: server totals, change, applied cash amount, stock and shift totals', async () => {
     const before = await call('GET', '/shifts/current');
-    const res = await call('POST', '/transactions', sale([line()], [{ method: 'cash', amount: 20000, reference: null }]), { 'Idempotency-Key': key() });
+    const res = await call(
+      'POST',
+      '/transactions',
+      sale([line()], [{ method: 'cash', amount: 20000, reference: null }]),
+      { 'Idempotency-Key': key() },
+    );
 
     expect(res.status, JSON.stringify(res.data)).toBe(201);
     expect(Number(res.data.grandTotal)).toBe(15000);
@@ -132,7 +161,9 @@ describe('checkout e2e', () => {
     const k = key();
     const body = sale([line()], [{ method: 'qris', amount: PRICE, reference: null }]);
     const stockBefore = await stock();
-    const results = await Promise.all([1, 2, 3].map(() => call('POST', '/transactions', body, { 'Idempotency-Key': k })));
+    const results = await Promise.all(
+      [1, 2, 3].map(() => call('POST', '/transactions', body, { 'Idempotency-Key': k })),
+    );
 
     expect(results.map(r => r.status).sort()).toEqual([200, 200, 201]);
     expect(new Set(results.map(r => r.data.id)).size).toBe(1);
@@ -141,7 +172,12 @@ describe('checkout e2e', () => {
 
   it('accepts the same product on two lines (was rejected before)', async () => {
     const stockBefore = await stock();
-    const res = await call('POST', '/transactions', sale([line(PRICE, 1), line(PRICE, 2)], [{ method: 'transfer', amount: PRICE * 3, reference: null }]), { 'Idempotency-Key': key() });
+    const res = await call(
+      'POST',
+      '/transactions',
+      sale([line(PRICE, 1), line(PRICE, 2)], [{ method: 'transfer', amount: PRICE * 3, reference: null }]),
+      { 'Idempotency-Key': key() },
+    );
     expect(res.status, JSON.stringify(res.data)).toBe(201);
     expect(await stock()).toBe(stockBefore - 3);
   });
@@ -151,14 +187,26 @@ describe('checkout e2e', () => {
     expect(patched.status).toBe(200);
     const stockBefore = await stock();
 
-    const res = await call('POST', '/transactions', sale([line(PRICE)], [{ method: 'cash', amount: 20000, reference: null }]), { 'Idempotency-Key': key() });
+    const res = await call(
+      'POST',
+      '/transactions',
+      sale([line(PRICE)], [{ method: 'cash', amount: 20000, reference: null }]),
+      { 'Idempotency-Key': key() },
+    );
     expect(res.status).toBe(409);
     expect(res.data.code).toBe('PRICE_CHANGED');
-    expect(res.data.details).toEqual([{ index: 0, productId, productName: 'E2E Kopi', clientUnitPrice: PRICE, unitPrice: 17000 }]);
+    expect(res.data.details).toEqual([
+      { index: 0, productId, productName: 'E2E Kopi', clientUnitPrice: PRICE, unitPrice: 17000 },
+    ]);
     expect(await stock()).toBe(stockBefore);
 
     // What the app does next: apply the server price and pay again with a new key.
-    const repaid = await call('POST', '/transactions', sale([line(17000)], [{ method: 'cash', amount: 20000, reference: null }]), { 'Idempotency-Key': key() });
+    const repaid = await call(
+      'POST',
+      '/transactions',
+      sale([line(17000)], [{ method: 'cash', amount: 20000, reference: null }]),
+      { 'Idempotency-Key': key() },
+    );
     expect(repaid.status, JSON.stringify(repaid.data)).toBe(201);
     expect(Number(repaid.data.grandTotal)).toBe(17000);
   });
@@ -167,20 +215,40 @@ describe('checkout e2e', () => {
     const stockBefore = await stock();
     const price = 17000;
 
-    const noStock = await call('POST', '/transactions', sale([line(price, 999)], [{ method: 'qris', amount: price * 999, reference: null }]), { 'Idempotency-Key': key() });
+    const noStock = await call(
+      'POST',
+      '/transactions',
+      sale([line(price, 999)], [{ method: 'qris', amount: price * 999, reference: null }]),
+      { 'Idempotency-Key': key() },
+    );
     expect([noStock.status, noStock.data.code]).toEqual([422, 'INSUFFICIENT_STOCK']);
 
-    const underpaid = await call('POST', '/transactions', sale([line(price)], [{ method: 'cash', amount: 1000, reference: null }]), { 'Idempotency-Key': key() });
+    const underpaid = await call(
+      'POST',
+      '/transactions',
+      sale([line(price)], [{ method: 'cash', amount: 1000, reference: null }]),
+      { 'Idempotency-Key': key() },
+    );
     expect([underpaid.status, underpaid.data.code]).toEqual([422, 'INSUFFICIENT_PAYMENT']);
 
-    const badKey = await call('POST', '/transactions', sale([line(price)], [{ method: 'qris', amount: price, reference: null }]), { 'Idempotency-Key': 'bad key!' });
+    const badKey = await call(
+      'POST',
+      '/transactions',
+      sale([line(price)], [{ method: 'qris', amount: price, reference: null }]),
+      { 'Idempotency-Key': 'bad key!' },
+    );
     expect([badKey.status, badKey.data.code]).toEqual([422, 'INVALID_IDEMPOTENCY_KEY']);
 
     expect(await stock()).toBe(stockBefore);
   });
 
   it('rejects a shift id that is not open for this user', async () => {
-    const res = await call('POST', '/transactions', { ...sale([line(17000)], [{ method: 'qris', amount: 17000, reference: null }]), shiftId: randomUUID() }, { 'Idempotency-Key': key() });
+    const res = await call(
+      'POST',
+      '/transactions',
+      { ...sale([line(17000)], [{ method: 'qris', amount: 17000, reference: null }]), shiftId: randomUUID() },
+      { 'Idempotency-Key': key() },
+    );
     expect([res.status, res.data.code]).toEqual([422, 'SHIFT_NOT_OPEN']);
   });
 });

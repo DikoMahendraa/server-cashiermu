@@ -40,7 +40,7 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id      = String(req.params['id']);
+    const id = String(req.params['id']);
     const storeId = req.user!.storeId;
 
     const productCount = await prisma.product.count({ where: { categoryId: id, storeId } });

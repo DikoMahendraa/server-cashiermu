@@ -4,7 +4,10 @@ export const createUserSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().default(''),
-  pin: z.string().length(6).regex(/^\d{6}$/),
+  pin: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
   branchId: z.string().uuid().optional(),
   role: z.enum(['cashier', 'owner']).default('cashier'),
 });
@@ -17,8 +20,14 @@ export const updateUserSchema = z.object({
 });
 
 export const changePinSchema = z.object({
-  newPin: z.string().length(6).regex(/^\d{6}$/),
-  ownerPin: z.string().length(6).regex(/^\d{6}$/),
+  newPin: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
+  ownerPin: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
 });
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;

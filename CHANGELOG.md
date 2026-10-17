@@ -5,6 +5,29 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Situs dokumentasi developer di `/docs`** — menu per halaman, daftar isi, dan kode berwarna. Aktif di development; di production mati kecuali `DOCS_ENABLED=true` dan wajib `DOCS_PASSWORD` (HTTP Basic auth). Env baru: `DOCS_ENABLED`, `DOCS_USER`, `DOCS_PASSWORD`.
+- `POST /transactions` menerima header `Idempotency-Key`; request ulang dengan key yang sama mengembalikan transaksi awal (status `200` + header `Idempotent-Replayed: true`), tidak menagih dua kali.
+  - Migration: `20261018120000_add_transaction_idempotency_key`
+  - Kompatibilitas app: jalan dengan semua versi app; app terbaru mengirim key.
+- Panduan developer (`docs/`), ESLint, Prettier, Husky (pre-commit, commit-msg, pre-push), commitlint, dan test (Vitest: unit + e2e).
+
+### Changed
+
+- Checkout menghitung ulang semua harga di server. Harga dari app yang sudah usang ditolak dengan `409 PRICE_CHANGED` (berisi `details` per baris). Error checkout kini berbentuk `{ code, message, details? }`.
+- Stok dikurangi atomik (`stock >= qty`), produk yang sama boleh muncul di beberapa baris keranjang, `shiftId`/`branchId` divalidasi milik store dan user yang sama.
+- Pembayaran tunai dicatat bersih dari kembalian, sehingga total shift dan laporan metode bayar tidak membengkak.
+- `invoiceNumber` kini unik per store, bukan global.
+  - Migration: `20261018121000_scope_invoice_number_per_store`
+- `cashPaid` pada body checkout sekarang diturunkan dari pembayaran tunai (field lama masih diterima).
+
+### Fixed
+
+- Login dua kali dalam detik yang sama gagal `409` karena refresh token identik; setiap token kini unik (`jti`).
+
 ## [1.2.0] — 2026-10-16
 
 ### Added

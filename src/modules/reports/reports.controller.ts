@@ -17,7 +17,9 @@ export const getSummary = async (req: Request, res: Response, next: NextFunction
       storeId,
       status: 'paid' as const,
       ...(branchId ? { branchId } : {}),
-      ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+      ...(from || to
+        ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+        : {}),
     };
 
     const [count, agg] = await Promise.all([
@@ -112,7 +114,9 @@ export const getTopProducts = async (req: Request, res: Response, next: NextFunc
         transaction: {
           storeId,
           status: 'paid',
-          ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+          ...(from || to
+            ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+            : {}),
         },
       },
       _sum: { quantity: true, subtotal: true },
@@ -120,13 +124,15 @@ export const getTopProducts = async (req: Request, res: Response, next: NextFunc
       take: lim,
     });
 
-    res.json(items.map(i => ({
-      productId: i.productId,
-      productName: i.productName,
-      sku: i.sku,
-      totalQuantity: i._sum.quantity || 0,
-      totalRevenue: Number(i._sum.subtotal || 0),
-    })));
+    res.json(
+      items.map(i => ({
+        productId: i.productId,
+        productName: i.productName,
+        sku: i.sku,
+        totalQuantity: i._sum.quantity || 0,
+        totalRevenue: Number(i._sum.subtotal || 0),
+      })),
+    );
   } catch (err) {
     next(err);
   }
@@ -144,18 +150,22 @@ export const getPaymentBreakdown = async (req: Request, res: Response, next: Nex
         transaction: {
           storeId,
           status: 'paid',
-          ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+          ...(from || to
+            ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+            : {}),
         },
       },
       _sum: { amount: true },
       _count: { id: true },
     });
 
-    res.json(payments.map(p => ({
-      method: p.method,
-      total: Number(p._sum.amount || 0),
-      count: p._count.id,
-    })));
+    res.json(
+      payments.map(p => ({
+        method: p.method,
+        total: Number(p._sum.amount || 0),
+        count: p._count.id,
+      })),
+    );
   } catch (err) {
     next(err);
   }
@@ -172,7 +182,9 @@ export const getShiftSummary = async (req: Request, res: Response, next: NextFun
       where: {
         storeId,
         ...(branchId ? { branchId } : {}),
-        ...(from || to ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+        ...(from || to
+          ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+          : {}),
       },
       include: {
         user: { select: { id: true, name: true } },

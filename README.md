@@ -1,5 +1,7 @@
 # CashierMu API — Backend Setup Guide
 
+> **Developers:** coding standards, git workflow, how to add a feature and how versioning works are in [`docs/`](docs/README.md) (English).
+
 Panduan lengkap dari nol sampai server bisa dijalankan dan diintegrasikan dengan aplikasi React Native.
 
 ---

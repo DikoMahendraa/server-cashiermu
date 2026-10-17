@@ -11,29 +11,35 @@ const selectedVariantSchema = z.object({
 const percentAtMost100 = (d: { type: string; value: number }) => d.type !== 'percent' || d.value <= 100;
 const percentMessage = { message: 'Diskon persen maksimal 100', path: ['value'] };
 
-const itemDiscountSchema = z.object({
-  type:  z.enum(['percent', 'nominal']),
-  value: z.coerce.number().min(0),
-  label: z.string().default(''),
-}).refine(percentAtMost100, percentMessage).nullable().optional();
+const itemDiscountSchema = z
+  .object({
+    type: z.enum(['percent', 'nominal']),
+    value: z.coerce.number().min(0),
+    label: z.string().default(''),
+  })
+  .refine(percentAtMost100, percentMessage)
+  .nullable()
+  .optional();
 
 const transactionItemSchema = z.object({
-  productId:        z.string().uuid(),
-  quantity:         z.coerce.number().int().positive(),
+  productId: z.string().uuid(),
+  quantity: z.coerce.number().int().positive(),
   // Client-displayed values: the server recomputes both and rejects a stale unitPrice.
-  unitPrice:        z.coerce.number().min(0),
-  subtotal:         z.coerce.number().min(0).optional(),
+  unitPrice: z.coerce.number().min(0),
+  subtotal: z.coerce.number().min(0).optional(),
   selectedVariants: z.array(selectedVariantSchema).default([]),
-  note:             z.string().default(''),
-  itemDiscount:     itemDiscountSchema,
+  note: z.string().default(''),
+  itemDiscount: itemDiscountSchema,
 });
 
-const discountSchema = z.object({
-  type: z.enum(['percent', 'nominal']),
-  value: z.coerce.number().min(0),
-  label: z.string().default(''),
-  code: z.string().nullable().optional(),
-}).refine(percentAtMost100, percentMessage);
+const discountSchema = z
+  .object({
+    type: z.enum(['percent', 'nominal']),
+    value: z.coerce.number().min(0),
+    label: z.string().default(''),
+    code: z.string().nullable().optional(),
+  })
+  .refine(percentAtMost100, percentMessage);
 
 const paymentSchema = z.object({
   method: z.enum(['cash', 'qris', 'transfer', 'debit_card', 'credit_card']),
@@ -56,7 +62,10 @@ export const createTransactionSchema = z.object({
 export const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/);
 
 export const voidTransactionSchema = z.object({
-  ownerPin: z.string().length(6).regex(/^\d{6}$/),
+  ownerPin: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
   reason: z.string().min(1),
 });
 

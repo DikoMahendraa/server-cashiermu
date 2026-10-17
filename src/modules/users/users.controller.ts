@@ -5,10 +5,20 @@ import { CreateUserDto, UpdateUserDto, ChangePinDto } from './users.schema';
 
 export const listUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const role = typeof req.query['role'] === 'string' ? req.query['role'] as 'owner' | 'cashier' : undefined;
+    const role = typeof req.query['role'] === 'string' ? (req.query['role'] as 'owner' | 'cashier') : undefined;
     const users = await prisma.user.findMany({
       where: { storeId: req.user!.storeId, ...(role ? { role } : {}) },
-      select: { id: true, name: true, email: true, phone: true, role: true, branchId: true, isActive: true, avatarUrl: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        branchId: true,
+        isActive: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
     res.json(users);
@@ -36,9 +46,22 @@ export const getUser = async (req: Request, res: Response, next: NextFunction): 
     const id = String(req.params['id']);
     const user = await prisma.user.findUnique({
       where: { id, storeId: req.user!.storeId },
-      select: { id: true, name: true, email: true, phone: true, role: true, branchId: true, isActive: true, avatarUrl: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        branchId: true,
+        isActive: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
     });
-    if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
     res.json(user);
   } catch (err) {
     next(err);
@@ -66,13 +89,22 @@ export const changePin = async (req: Request, res: Response, next: NextFunction)
     const storeId = req.user!.storeId;
 
     const owner = await prisma.user.findUnique({ where: { id: req.user!.userId } });
-    if (!owner) { res.status(404).json({ message: 'Owner not found' }); return; }
+    if (!owner) {
+      res.status(404).json({ message: 'Owner not found' });
+      return;
+    }
 
     const ownerPinMatch = await bcrypt.compare(ownerPin, owner.pinHash);
-    if (!ownerPinMatch) { res.status(401).json({ message: 'Invalid owner PIN' }); return; }
+    if (!ownerPinMatch) {
+      res.status(401).json({ message: 'Invalid owner PIN' });
+      return;
+    }
 
     const targetUser = await prisma.user.findUnique({ where: { id, storeId } });
-    if (!targetUser) { res.status(404).json({ message: 'User not found' }); return; }
+    if (!targetUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
     if (targetUser.role === 'owner' && targetUser.id !== owner.id) {
       res.status(403).json({ message: "Cannot change another owner's PIN" });
       return;
@@ -97,8 +129,14 @@ export const deleteUser = async (req: Request, res: Response, next: NextFunction
     }
 
     const user = await prisma.user.findUnique({ where: { id, storeId } });
-    if (!user) { res.status(404).json({ message: 'Karyawan tidak ditemukan' }); return; }
-    if (user.role === 'owner') { res.status(403).json({ message: 'Tidak dapat menghapus akun owner' }); return; }
+    if (!user) {
+      res.status(404).json({ message: 'Karyawan tidak ditemukan' });
+      return;
+    }
+    if (user.role === 'owner') {
+      res.status(403).json({ message: 'Tidak dapat menghapus akun owner' });
+      return;
+    }
 
     const [txCount, shiftCount] = await Promise.all([
       prisma.transaction.count({ where: { userId: id } }),
@@ -131,7 +169,10 @@ export const toggleStatus = async (req: Request, res: Response, next: NextFuncti
     }
 
     const user = await prisma.user.findUnique({ where: { id, storeId } });
-    if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
 
     const updated = await prisma.user.update({
       where: { id, storeId },

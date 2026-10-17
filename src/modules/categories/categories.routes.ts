@@ -8,8 +8,20 @@ import * as categoriesController from './categories.controller';
 const router = Router();
 
 router.get('/', authenticate, categoriesController.listCategories);
-router.post('/', authenticate, requireRole('owner'), validate(createCategorySchema), categoriesController.createCategory);
-router.patch('/:id', authenticate, requireRole('owner'), validate(updateCategorySchema), categoriesController.updateCategory);
+router.post(
+  '/',
+  authenticate,
+  requireRole('owner'),
+  validate(createCategorySchema),
+  categoriesController.createCategory,
+);
+router.patch(
+  '/:id',
+  authenticate,
+  requireRole('owner'),
+  validate(updateCategorySchema),
+  categoriesController.updateCategory,
+);
 router.delete('/:id', authenticate, requireRole('owner'), categoriesController.deleteCategory);
 
 export default router;

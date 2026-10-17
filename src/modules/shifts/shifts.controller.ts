@@ -65,7 +65,7 @@ export const listShifts = async (req: Request, res: Response, next: NextFunction
     const storeId = req.user!.storeId;
     const branchId = typeof req.query['branchId'] === 'string' ? req.query['branchId'] : undefined;
     const userId = typeof req.query['userId'] === 'string' ? req.query['userId'] : undefined;
-    const status = typeof req.query['status'] === 'string' ? req.query['status'] as 'open' | 'closed' : undefined;
+    const status = typeof req.query['status'] === 'string' ? (req.query['status'] as 'open' | 'closed') : undefined;
     const from = typeof req.query['from'] === 'string' ? req.query['from'] : undefined;
     const to = typeof req.query['to'] === 'string' ? req.query['to'] : undefined;
 
@@ -75,7 +75,9 @@ export const listShifts = async (req: Request, res: Response, next: NextFunction
         ...(branchId ? { branchId } : {}),
         ...(userId ? { userId } : {}),
         ...(status ? { status } : {}),
-        ...(from || to ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+        ...(from || to
+          ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+          : {}),
       },
       include: {
         user: { select: { id: true, name: true } },
@@ -100,7 +102,10 @@ export const getShift = async (req: Request, res: Response, next: NextFunction):
         transactions: { select: { id: true, invoiceNumber: true, grandTotal: true, status: true, createdAt: true } },
       },
     });
-    if (!shift) { res.status(404).json({ message: 'Shift not found' }); return; }
+    if (!shift) {
+      res.status(404).json({ message: 'Shift not found' });
+      return;
+    }
     res.json(shift);
   } catch (err) {
     next(err);
