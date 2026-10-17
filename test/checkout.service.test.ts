@@ -40,6 +40,7 @@ function seed() {
         sellPrice: 20000,
         buyPrice: 8000,
         trackStock: true,
+        allowDecimalQty: false,
         discountEnabled: false,
         discountType: 'percent',
         discountValue: 0,
@@ -63,9 +64,26 @@ function seed() {
         sku: 'CUCI',
         stock: 0,
         trackStock: false,
+        allowDecimalQty: false,
         isActive: true,
         sellPrice: 30000,
         buyPrice: 5000,
+        discountEnabled: false,
+        discountType: 'percent',
+        discountValue: 0,
+        variantGroups: [],
+      },
+      {
+        id: 'p-kg',
+        storeId: 'store-1',
+        name: 'Cuci Kiloan',
+        sku: 'KILO',
+        stock: 0,
+        trackStock: false,
+        allowDecimalQty: true,
+        isActive: true,
+        sellPrice: 7000,
+        buyPrice: 3000,
         discountEnabled: false,
         discountType: 'percent',
         discountValue: 0,
@@ -81,6 +99,7 @@ function seed() {
         sellPrice: 1000,
         buyPrice: 500,
         trackStock: true,
+        allowDecimalQty: false,
         discountEnabled: false,
         discountType: 'percent',
         discountValue: 0,
@@ -393,6 +412,50 @@ describe('createCheckout', () => {
       expect(state.products.find(p => p.id === 'p-1')!.stock).toBe(3);
       expect(state.products.find(p => p.id === 'p-service')!.stock).toBe(0);
       expect(db.product.updateMany).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('decimal quantities', () => {
+    const kgLine = (quantity: number) => ({
+      productId: 'p-kg',
+      quantity,
+      unitPrice: 7000,
+      selectedVariants: [],
+      note: '',
+    });
+
+    it('sells 2.5 kg of a per-kg service: total, stored quantity, no stock movement', async () => {
+      const { transaction } = await createCheckout(
+        db,
+        cashier,
+        body({ items: [kgLine(2.5)], payments: [{ method: 'transfer', amount: 17500 }] }),
+      );
+      expect(transaction).toMatchObject({ grandTotal: 17500 });
+      expect((transaction as any).items[0]).toMatchObject({
+        quantity: 2.5,
+        unitPrice: 7000,
+        costPrice: 3000,
+        subtotal: 17500,
+      });
+      expect(db.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a fractional quantity for a normal product (and changes nothing)', async () => {
+      const bad = body({
+        items: [
+          {
+            productId: 'p-1',
+            quantity: 1.5,
+            unitPrice: 20000,
+            selectedVariants: [{ optionId: 'o-reg' } as any],
+            note: '',
+          },
+        ],
+        payments: [{ method: 'qris', amount: 30000 }],
+      });
+      await expectCheckoutError(createCheckout(db, cashier, bad), 'INVALID_QUANTITY', 422);
+      expect(state.products[0].stock).toBe(5);
+      expect(db.transaction.create).not.toHaveBeenCalled();
     });
   });
 

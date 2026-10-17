@@ -155,7 +155,8 @@ export const voidTransaction = async (req: Request, res: Response, next: NextFun
         // updateMany + trackStock filter: untracked products (services/unlimited) never get stock added back
         await tx.product.updateMany({
           where: { id: item.productId, storeId, trackStock: true },
-          data: { stock: { increment: item.quantity } },
+          // tracked products only ever sell whole quantities, so this is an integer
+          data: { stock: { increment: Math.round(Number(item.quantity)) } },
         });
       }
 

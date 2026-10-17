@@ -2,7 +2,8 @@
  * Shared plumbing for the end-to-end tests. They talk to a running LOCAL API (`npm run dev`) using
  * throwaway accounts defined in .env.example, so they never touch real store data.
  */
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { expect } from 'vitest';
 
@@ -24,6 +25,8 @@ export const e2eEnv = {
   phone: pick('E2E_PHONE'),
   email2: pick('E2E_EMAIL_2'),
   phone2: pick('E2E_PHONE_2'),
+  email3: pick('E2E_EMAIL_3'),
+  phone3: pick('E2E_PHONE_3'),
   pin: pick('E2E_PIN'),
 };
 
@@ -48,8 +51,36 @@ export async function call(
   return { status: res.status, headers: res.headers, data: text ? JSON.parse(text) : null };
 }
 
-/** Logs in, registering the throwaway owner first if it does not exist yet. Returns the access token. */
-export async function ensureOwner(account: { email: string; phone: string; storeName: string }): Promise<string> {
+// Access tokens live 15 minutes. Caching them avoids logging in on every run, because the login rate limiter
+// (10 per minute per IP) would otherwise block back-to-back e2e runs.
+const TOKEN_CACHE = join(tmpdir(), 'cashiermu-e2e-tokens.json');
+
+function readTokenCache(): Record<string, string> {
+  try {
+    return existsSync(TOKEN_CACHE) ? (JSON.parse(readFileSync(TOKEN_CACHE, 'utf8')) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Returns an access token for a throwaway owner, registering the account on first use.
+ * `sector`/`subtype` only matter at registration; an existing store keeps the sector it has.
+ */
+export async function ensureOwner(account: {
+  email: string;
+  phone: string;
+  storeName: string;
+  sector?: string;
+  subtype?: string;
+}): Promise<string> {
+  const cache = readTokenCache();
+  const cached = cache[account.email];
+  if (cached) {
+    const me = await call(cached, 'GET', '/auth/me');
+    if (me.status === 200 && me.data.store.name === account.storeName) return cached;
+  }
+
   let login = await call('', 'POST', '/auth/login', { credential: account.email, pin: e2eEnv.pin });
   if (login.status === 401) {
     const reg = await call('', 'POST', '/auth/register', {
@@ -59,13 +90,22 @@ export async function ensureOwner(account: { email: string; phone: string; store
       phone: account.phone,
       pin: e2eEnv.pin,
       pinConfirm: e2eEnv.pin,
+      ...(account.sector ? { sector: account.sector } : {}),
+      ...(account.subtype ? { subtype: account.subtype } : {}),
     });
     expect(reg.status, JSON.stringify(reg.data)).toBe(201);
     login = await call('', 'POST', '/auth/login', { credential: account.email, pin: e2eEnv.pin });
   }
   expect(login.status, JSON.stringify(login.data)).toBe(200);
   expect(login.data.store.name).toBe(account.storeName); // guard: never run against a real store
-  return login.data.accessToken as string;
+
+  const token = login.data.accessToken as string;
+  try {
+    writeFileSync(TOKEN_CACHE, JSON.stringify({ ...cache, [account.email]: token }));
+  } catch {
+    // caching is only an optimisation
+  }
+  return token;
 }
 
 /** Opens a shift for the current user if none is open. Returns its id and whether this call opened it. */

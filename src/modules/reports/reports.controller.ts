@@ -131,7 +131,7 @@ export const getTopProducts = async (req: Request, res: Response, next: NextFunc
         productId: i.productId,
         productName: i.productName,
         sku: i.sku,
-        totalQuantity: i._sum.quantity || 0,
+        totalQuantity: Number(i._sum.quantity ?? 0),
         totalRevenue: Number(i._sum.subtotal || 0),
       })),
     );

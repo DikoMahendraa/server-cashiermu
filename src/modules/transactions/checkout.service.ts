@@ -128,6 +128,7 @@ export async function createCheckout(
         sku: p.sku,
         stock: p.stock,
         trackStock: p.trackStock,
+        allowDecimalQty: p.allowDecimalQty,
         buyPrice: Number(p.buyPrice),
         sellPrice: Number(p.sellPrice),
         discountEnabled: p.discountEnabled,

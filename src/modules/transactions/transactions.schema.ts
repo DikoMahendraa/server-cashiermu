@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
+// Only `optionId` matters: the server looks the option up and prices it from the database.
+// The other fields are what older app versions send; they are accepted and ignored.
 const selectedVariantSchema = z.object({
-  groupId: z.string(),
-  groupName: z.string(),
   optionId: z.string(),
-  optionLabel: z.string(),
-  priceModifier: z.coerce.number(),
+  groupId: z.string().optional(),
+  groupName: z.string().optional(),
+  optionLabel: z.string().optional(),
+  priceModifier: z.coerce.number().optional(),
 });
 
 const percentAtMost100 = (d: { type: string; value: number }) => d.type !== 'percent' || d.value <= 100;
@@ -23,7 +25,14 @@ const itemDiscountSchema = z
 
 const transactionItemSchema = z.object({
   productId: z.string().uuid(),
-  quantity: z.coerce.number().int().positive(),
+  // Whole numbers, or up to 3 decimals for items marked allowDecimalQty (checked against the product at checkout)
+  quantity: z.coerce
+    .number()
+    .positive()
+    .max(1_000_000)
+    .refine(value => Math.abs(value * 1000 - Math.round(value * 1000)) < 1e-6, {
+      message: 'Maksimal 3 angka di belakang koma',
+    }),
   // Client-displayed values: the server recomputes both and rejects a stale unitPrice.
   unitPrice: z.coerce.number().min(0),
   subtotal: z.coerce.number().min(0).optional(),

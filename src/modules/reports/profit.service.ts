@@ -67,7 +67,7 @@ export async function getProfitReport(db: PrismaClient, query: ProfitQuery): Pro
       GROUP BY t."userId"`,
     db.$queryRaw<Raw[]>`
       SELECT ti."productId" AS "productId", ti."productName" AS "productName",
-             SUM(ti."quantity")::int AS "quantity",
+             COALESCE(SUM(ti."quantity"), 0) AS "quantity",
              COALESCE(SUM(ti."subtotal"), 0) AS "revenue",
              COALESCE(SUM(ti."costPrice" * ti."quantity"), 0) AS "cogs"
       FROM "TransactionItem" ti
