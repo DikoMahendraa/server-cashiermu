@@ -7,6 +7,11 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-10-18
+
+> **Catatan upgrade:** rilis ini membawa 2 migration database. Jalankan `npx prisma migrate deploy` (setelah backup) **sebelum** menjalankan server versi baru. Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime.
+> **Kompatibilitas app:** semua versi app yang sudah terpasang tetap bisa checkout selama harga di app sinkron dengan server. Dukungan penuh (`Idempotency-Key`, penanganan `PRICE_CHANGED`, guard tap ganda) ada di app versi terbaru.
+
 ### Added
 
 - **Situs dokumentasi developer di `/docs`** — menu per halaman, daftar isi, dan kode berwarna. Aktif di development; di production mati kecuali `DOCS_ENABLED=true` dan wajib `DOCS_PASSWORD` (HTTP Basic auth). Env baru: `DOCS_ENABLED`, `DOCS_USER`, `DOCS_PASSWORD`.
@@ -22,7 +27,11 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Pembayaran tunai dicatat bersih dari kembalian, sehingga total shift dan laporan metode bayar tidak membengkak.
 - `invoiceNumber` kini unik per store, bukan global.
   - Migration: `20261018121000_scope_invoice_number_per_store`
-- `cashPaid` pada body checkout sekarang diturunkan dari pembayaran tunai (field lama masih diterima).
+- Total kembalian (`changeAmount`) dan `cashPaid` pada transaksi kini dihitung server dari entri pembayaran tunai.
+
+### Deprecated
+
+- Field `cashPaid` pada body `POST /transactions`: kini diturunkan dari pembayaran bertipe `cash`. Masih diterima agar app lama tidak rusak; direncanakan dihapus di 2.0.0.
 
 ### Fixed
 
