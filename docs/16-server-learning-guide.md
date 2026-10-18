@@ -426,7 +426,7 @@ konsol, atau token di chat, Git, atau tangkapan layar. Kalau terlanjur terlihat,
 | ------- | ----------- |
 | Database asli (volume `db-data`) | Ada |
 | Dump harian di server (`~/backups`, disimpan 14 hari) | Ada, jadwal cron 20.00 UTC (03.00 WIB) |
-| Salinan di luar server (Cloudflare R2 / Backblaze B2 lewat `rclone`) | **Belum**, harus segera |
+| Salinan di luar server (Cloudflare R2 lewat `rclone`, lihat [Off-site backup](17-r2-offsite-backup.md)) | Ada; aktifkan juga bucket lock |
 
 Cara kerjanya:
 
@@ -511,7 +511,7 @@ Masalah adalah bagian belajar. Ini yang terjadi dan cara mengenalinya lain kali.
 
 **Belum (urutan prioritas)**
 
-- [ ] Salinan backup di luar server (`rclone` ke R2 atau B2)
+- [x] Salinan backup di luar server (`rclone` ke R2); bucket lock 14 hari belum tentu aktif, cek di dashboard
 - [ ] Pemantau uptime eksternal
 - [ ] Alloy dan Grafana Cloud di server, serta contact point alert
 - [ ] Build aplikasi produksi dan uji di HP asli (pendaftaran toko, jual, offline, cetak)

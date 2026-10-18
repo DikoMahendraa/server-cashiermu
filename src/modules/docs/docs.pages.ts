@@ -59,6 +59,12 @@ export const DOC_PAGES: readonly DocPage[] = [
     group: 'guide',
     navTitle: '16. Server learning guide',
   },
+  {
+    slug: 'r2-offsite-backup',
+    file: 'docs/17-r2-offsite-backup.md',
+    group: 'guide',
+    navTitle: '17. Off-site backup (R2)',
+  },
   { slug: 'changelog', file: 'CHANGELOG.md', group: 'reference', navTitle: 'Changelog' },
   { slug: 'setup-id', file: 'README.md', group: 'reference', navTitle: 'Setup from scratch (Indonesian)' },
   { slug: 'deployment', file: 'DEPLOYMENT_GUIDE.md', group: 'reference', navTitle: 'Deployment guide' },

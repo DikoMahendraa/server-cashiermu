@@ -109,6 +109,7 @@ crontab -e                                        # add the nightly job from the
 
 Copy dumps **off the server**: install [rclone](https://rclone.org), connect a Cloudflare R2 or Backblaze B2 bucket
 (`rclone config`), and set `RCLONE_REMOTE=remote:bucket` in the cron line. A dump on the same disk is not a backup.
+Step by step, including bucket lock and restore: [Off-site backup with R2](17-r2-offsite-backup.md).
 
 ## 8. Updating to a new version
 
