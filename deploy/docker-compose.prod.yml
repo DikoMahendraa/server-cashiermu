@@ -3,8 +3,17 @@
 # Variables come from deploy/.env (copy .env.example). Full steps: docs/15-deployment.md
 name: cashiermu
 
+# Docker keeps every container's output in a file that grows forever by default and can fill the disk.
+# This caps each container at 3 files of 10 MB.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   db:
+    logging: *default-logging
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -22,6 +31,7 @@ services:
     # No published ports: only the API (same private network) can reach the database.
 
   api:
+    logging: *default-logging
     build:
       context: ..
       dockerfile: Dockerfile
@@ -43,10 +53,12 @@ services:
     expose: ['3000']
 
   caddy:
+    logging: *default-logging
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
+      DOCS_DOMAIN: ${DOCS_DOMAIN:-docs.cashiermu.com}
     ports:
       - '80:80'
       - '443:443'
