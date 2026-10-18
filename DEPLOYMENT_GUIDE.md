@@ -1,19 +1,19 @@
 # Deployment & Versioning Guide — CashierMu
 
-Panduan standar branching, versioning, dan release workflow untuk project CashierMu.
-Berlaku untuk FE (`cashiermu`) dan BE (`server-cashiermu`).
+Standard guide to branching, versioning, and the release workflow for the CashierMu project.
+Applies to both the FE (`cashiermu`) and the BE (`server-cashiermu`).
 
 ---
 
-## Daftar Isi
+## Table of Contents
 
 1. [Branching Strategy](#1-branching-strategy)
 2. [Naming Convention](#2-naming-convention)
 3. [Merge Strategy](#3-merge-strategy)
 4. [Semantic Versioning](#4-semantic-versioning)
 5. [CHANGELOG Convention](#5-changelog-convention)
-6. [Workflow Harian](#6-workflow-harian-featurefix)
-7. [Workflow Release](#7-workflow-release)
+6. [Daily Workflow](#6-daily-workflow-featurefix)
+7. [Release Workflow](#7-release-workflow)
 8. [Hotfix Production](#8-hotfix-production)
 9. [Cheat Sheet](#9-cheat-sheet)
 
@@ -21,24 +21,24 @@ Berlaku untuk FE (`cashiermu`) dan BE (`server-cashiermu`).
 
 ## 1. Branching Strategy
 
-Project ini menggunakan **Gitflow**. Dua branch utama yang selalu ada:
+This project uses **Gitflow**. Two main branches always exist:
 
 ```
-main        ← production-ready. Selalu stable, tidak pernah commit langsung.
-develop     ← integration branch. Semua fitur & fix masuk sini dulu sebelum release.
+main        ← production-ready. Always stable, never committed to directly.
+develop     ← integration branch. All features & fixes land here first before a release.
 ```
 
-Branch pendukung (dibuat saat dibutuhkan, dihapus setelah merge):
+Supporting branches (created when needed, deleted after merge):
 
 ```
-feature/xxx     ← fitur baru
+feature/xxx     ← new feature
 fix/xxx         ← bug fix
-chore/xxx       ← perubahan non-fungsional (docs, config, deps, refactor)
-release/vX.Y.Z  ← persiapan release: bump version + finalize changelog
-hotfix/xxx      ← urgent fix langsung dari main (production incident)
+chore/xxx       ← non-functional change (docs, config, deps, refactor)
+release/vX.Y.Z  ← release preparation: bump version + finalize changelog
+hotfix/xxx      ← urgent fix straight from main (production incident)
 ```
 
-**Diagram alur:**
+**Flow diagram:**
 
 ```
 main ─────────────────────────────────── M2 ──────────────── M3
@@ -57,14 +57,14 @@ develop ── A ── B ─────────── C ── D ───
 Format: **`<type>/<short-kebab-description>`**
 
 ### Rules
-- Lowercase semua
-- Gunakan tanda `-` (kebab-case), bukan underscore atau spasi
-- Singkat tapi deskriptif, 3–5 kata
-- Tidak ada nama orang, tanggal, atau nomor tiket di nama branch (itu urusan commit message / PR title)
+- All lowercase
+- Use `-` (kebab-case), not underscores or spaces
+- Short but descriptive, 3–5 words
+- No person names, dates, or ticket numbers in the branch name (that belongs in the commit message / PR title)
 
-### Contoh per Tipe
+### Examples by Type
 
-| Tipe | Contoh Branch |
+| Type | Example Branch |
 |------|--------------|
 | `feature/` | `feature/printer-ble-integration` |
 | `feature/` | `feature/reprint-button` |
@@ -83,7 +83,7 @@ Format: **`<type>/<short-kebab-description>`**
 
 ## 3. Merge Strategy
 
-Gunakan merge strategy yang berbeda tergantung arah merge:
+Use a different merge strategy depending on the direction of the merge:
 
 ### Feature / Fix / Chore → `develop` : **Squash Merge**
 
@@ -93,9 +93,9 @@ develop:      A ─── B ─── [S]
 branch:   x ── y ── wip ── z
 ```
 
-Branch kerja sehari-hari biasanya berisi commit `wip`, `fix typo`, `coba ini`, `revert` dll. Squash mengubah semua itu menjadi **satu commit bersih** di `develop`.
+Day-to-day working branches usually contain commits like `wip`, `fix typo`, `try this`, `revert`, etc. Squashing turns all of that into **one clean commit** on `develop`.
 
-Di GitHub: pilih **"Squash and merge"**
+On GitHub: choose **"Squash and merge"**
 
 ### `release/*` → `main` : **Merge Commit**
 
@@ -105,24 +105,24 @@ main:     A ──────────────── [M]
 release:  ── bump ── final ─
 ```
 
-Jangan squash release ke main. Merge commit penting untuk:
-- Melacak titik persis sebuah versi masuk ke production
-- Menempel `git tag vX.Y.Z`
-- Trigger CI/CD deploy yang bisa di-trace ke commit spesifik
+Do not squash a release into main. A merge commit is important for:
+- Tracking the exact point where a version entered production
+- Attaching `git tag vX.Y.Z`
+- Triggering CI/CD deploys that can be traced to a specific commit
 
-Di GitHub: pilih **"Create a merge commit"**
+On GitHub: choose **"Create a merge commit"**
 
 ### `main` → `develop` (back-merge) : **Merge Commit**
 
-Wajib dilakukan setelah setiap release agar `develop` tidak tertinggal dari `main`.
+Must be done after every release so that `develop` does not fall behind `main`.
 
-### `hotfix/*` → `main` **dan** `develop` : **Merge Commit**
+### `hotfix/*` → `main` **and** `develop` : **Merge Commit**
 
-Hotfix harus masuk ke kedua branch agar fix tidak hilang di release berikutnya.
+A hotfix must go into both branches so the fix is not lost in the next release.
 
-### Ringkasan
+### Summary
 
-| Dari | Ke | Strategy |
+| From | To | Strategy |
 |------|----|----------|
 | `feature/*` | `develop` | Squash merge |
 | `fix/*` | `develop` | Squash merge |
@@ -138,38 +138,38 @@ Hotfix harus masuk ke kedua branch agar fix tidak hilang di release berikutnya.
 
 Format: **`MAJOR.MINOR.PATCH`**
 
-| Situasi | Bump | Contoh |
+| Situation | Bump | Example |
 |---------|------|--------|
-| Bug fix, patch kecil | PATCH | `1.0.0` → `1.0.1` |
-| Fitur baru, backward compatible | MINOR | `1.0.1` → `1.1.0` |
-| Breaking change, redesign besar | MAJOR | `1.1.0` → `2.0.0` |
+| Bug fix, small patch | PATCH | `1.0.0` → `1.0.1` |
+| New feature, backward compatible | MINOR | `1.0.1` → `1.1.0` |
+| Breaking change, major redesign | MAJOR | `1.1.0` → `2.0.0` |
 
-### Panduan Kapan Bump Apa
+### Guide: Which Bump to Use
 
-**PATCH** — tidak ada yang berubah dari sisi user/API:
-- Fix bug UI kecil
-- Fix error handling
-- Fix typo di label
-- Performance improvement internal
+**PATCH** — nothing changes from the user/API side:
+- Small UI bug fix
+- Error handling fix
+- Label typo fix
+- Internal performance improvement
 
-**MINOR** — ada penambahan yang tidak merusak yang sudah ada:
-- Layar / fitur baru
-- Endpoint API baru
-- Opsi konfigurasi baru
-- Integrasi perangkat baru (printer, scanner)
+**MINOR** — an addition that does not break anything existing:
+- New screen / feature
+- New API endpoint
+- New configuration option
+- New device integration (printer, scanner)
 
-**MAJOR** — ada perubahan yang bisa break existing behavior:
-- Perubahan struktur database yang tidak backward compatible
-- Perubahan format API response
-- Penghapusan fitur atau endpoint yang sudah ada
-- Perubahan alur autentikasi
+**MAJOR** — a change that can break existing behavior:
+- Database structure change that is not backward compatible
+- API response format change
+- Removal of an existing feature or endpoint
+- Authentication flow change
 
-### Pre-release Labels (opsional)
+### Pre-release Labels (optional)
 
 ```
-1.1.0-alpha.1   ← testing internal
-1.1.0-beta.1    ← testing terbatas
-1.1.0-rc.1      ← release candidate, siap produksi
+1.1.0-alpha.1   ← internal testing
+1.1.0-beta.1    ← limited testing
+1.1.0-rc.1      ← release candidate, production-ready
 1.1.0            ← stable release
 ```
 
@@ -177,102 +177,102 @@ Format: **`MAJOR.MINOR.PATCH`**
 
 ## 5. CHANGELOG Convention
 
-Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-### Struktur
+### Structure
 
 ```markdown
 ## [Unreleased]
 ### Added
-- Deskripsi fitur baru
+- Description of the new feature
 
 ## [1.1.0] - 2026-10-05
 ### Added
-- Integrasi printer BLE thermal via @ricka7x/expo-thermal-printer
+- BLE thermal printer integration via @ricka7x/expo-thermal-printer
 
 ### Fixed
-- Struk tidak tercetak karena ESC/POS codepage command tidak didukung printer
-- Status printer tidak update di SettingsScreen setelah connect
+- Receipt not printed because the ESC/POS codepage command is not supported by the printer
+- Printer status not updating in SettingsScreen after connect
 
 ## [1.0.0] - 2026-09-01
 ### Added
 - Initial release
 ```
 
-### Kategori Standar
+### Standard Categories
 
-| Kategori | Kapan Digunakan |
+| Category | When to Use |
 |----------|----------------|
-| `Added` | Fitur baru |
-| `Changed` | Perubahan fitur yang sudah ada |
-| `Fixed` | Bug fix |
-| `Removed` | Fitur atau API yang dihapus |
-| `Deprecated` | Fitur yang akan dihapus di versi mendatang |
-| `Security` | Fix terkait keamanan |
+| `Added` | New features |
+| `Changed` | Changes to existing features |
+| `Fixed` | Bug fixes |
+| `Removed` | Removed features or APIs |
+| `Deprecated` | Features that will be removed in a future version |
+| `Security` | Security-related fixes |
 
-### Aturan Update CHANGELOG
+### CHANGELOG Update Rules
 
-- `[Unreleased]` selalu ada di paling atas sebagai akumulasi perubahan sejak release terakhir
-- Saat release: rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, lalu buat blok `[Unreleased]` kosong baru di atasnya
-- Tulis dari perspektif user/developer yang membaca, bukan dari perspektif implementasi
-- Satu bullet per perubahan, ringkas dan jelas
+- `[Unreleased]` is always at the very top as the accumulation of changes since the last release
+- On release: rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, then create a new empty `[Unreleased]` block above it
+- Write from the perspective of the user/developer reading it, not from the implementation perspective
+- One bullet per change, concise and clear
 
 ---
 
-## 6. Workflow Harian (Feature/Fix)
+## 6. Daily Workflow (Feature/Fix)
 
-### Langkah-langkah
+### Steps
 
 ```bash
-# 1. Pastikan develop lokal up to date
+# 1. Make sure local develop is up to date
 git checkout develop
 git pull origin develop
 
-# 2. Buat branch baru dari develop
+# 2. Create a new branch from develop
 git checkout -b fix/blank-receipt-codepage
 
-# 3. Kerjakan perubahan, commit dengan pesan yang jelas
+# 3. Make the changes, commit with a clear message
 git add src/services/printer.service.ts
 git commit -m "fix: remove codepage() call causing blank receipt on cheap BLE printers"
 
-# Boleh beberapa commit selama di branch sendiri
+# Multiple commits are fine while on your own branch
 git add src/screens/Settings/PrinterSettingsScreen.tsx
 git commit -m "fix: sync Zustand store after printer connect/disconnect"
 
-# 4. Push branch ke remote
+# 4. Push the branch to the remote
 git push origin fix/blank-receipt-codepage
 
-# 5. Buat Pull Request di GitHub
+# 5. Create a Pull Request on GitHub
 #    - Base branch: develop
-#    - Judul PR: sama dengan commit message utama
-#    - Description: jelaskan root cause dan solusi
+#    - PR title: same as the main commit message
+#    - Description: explain the root cause and the solution
 #    - Merge strategy: Squash and merge
 ```
 
-### Format Commit Message
+### Commit Message Format
 
-Ikuti **Conventional Commits**:
+Follow **Conventional Commits**:
 
 ```
-<type>(<scope>): <deskripsi singkat>
+<type>(<scope>): <short description>
 
-[body opsional — penjelasan tambahan]
+[optional body — additional explanation]
 
-[footer opsional — breaking change / referensi issue]
+[optional footer — breaking change / issue reference]
 ```
 
-| Type | Kapan |
+| Type | When |
 |------|-------|
-| `feat` | Fitur baru |
+| `feat` | New feature |
 | `fix` | Bug fix |
 | `chore` | Maintenance, deps, config |
-| `refactor` | Refactor tanpa ubah behavior |
-| `docs` | Update dokumentasi |
-| `style` | Formatting, tidak ada perubahan logic |
-| `test` | Tambah atau update test |
-| `perf` | Improvement performa |
+| `refactor` | Refactor without behavior change |
+| `docs` | Documentation update |
+| `style` | Formatting, no logic change |
+| `test` | Add or update tests |
+| `perf` | Performance improvement |
 
-**Contoh:**
+**Examples:**
 ```bash
 git commit -m "feat: implement reprint button with BLE printer integration"
 git commit -m "fix: prevent double-submit on payment confirmation"
@@ -283,46 +283,46 @@ git commit -m "docs: add deployment guide and session changelog"
 
 ---
 
-## 7. Workflow Release
+## 7. Release Workflow
 
-### Kapan Release?
+### When to Release?
 
-Release dilakukan ketika `develop` sudah punya cukup perubahan yang siap masuk production. Bisa berdasarkan:
-- Sprint selesai
-- Milestone fitur tercapai
-- Akumulasi fix yang penting
+A release is made when `develop` has enough changes ready for production. It can be based on:
+- Sprint completed
+- Feature milestone reached
+- Accumulation of important fixes
 
-### Langkah-langkah
+### Steps
 
 ```bash
-# 1. Pastikan develop up to date dan semua PR sudah merged
+# 1. Make sure develop is up to date and all PRs are merged
 git checkout develop
 git pull origin develop
 
-# 2. Buat release branch
+# 2. Create the release branch
 git checkout -b release/v1.1.0
 
-# 3. Bump versi di package.json
-#    (pilih salah satu)
-npm version minor --no-git-tag-version   # otomatis bump MINOR
-# atau edit manual package.json: "version": "1.1.0"
+# 3. Bump the version in package.json
+#    (choose one)
+npm version minor --no-git-tag-version   # automatically bumps MINOR
+# or edit package.json manually: "version": "1.1.0"
 
-# 4. Finalisasi CHANGELOG.md
-#    Ganti [Unreleased] → [1.1.0] - 2026-10-05
-#    Buat blok [Unreleased] kosong baru di atasnya
+# 4. Finalize CHANGELOG.md
+#    Replace [Unreleased] → [1.1.0] - 2026-10-05
+#    Create a new empty [Unreleased] block above it
 
-# 5. Commit perubahan versi
+# 5. Commit the version change
 git add package.json CHANGELOG.md
 git commit -m "chore: release v1.1.0"
 
-# 6. Push release branch
+# 6. Push the release branch
 git push origin release/v1.1.0
 
-# 7. Buat PR: release/v1.1.0 → main
-#    Merge strategy: Create a merge commit (BUKAN squash)
-#    Judul PR: "Release v1.1.0"
+# 7. Create a PR: release/v1.1.0 → main
+#    Merge strategy: Create a merge commit (NOT squash)
+#    PR title: "Release v1.1.0"
 
-# 8. Setelah PR merged ke main, buat git tag
+# 8. After the PR is merged into main, create the git tag
 git checkout main
 git pull origin main
 git tag -a v1.1.0 -m "Release v1.1.0"
@@ -334,44 +334,44 @@ git pull origin develop
 git merge main --no-ff -m "chore: back-merge v1.1.0 into develop"
 git push origin develop
 
-# 10. Hapus release branch (opsional, sudah tidak dibutuhkan)
+# 10. Delete the release branch (optional, no longer needed)
 git branch -d release/v1.1.0
 git push origin --delete release/v1.1.0
 ```
 
-### Hal yang BOLEH dilakukan di release branch
+### What IS allowed on a release branch
 
-- Bump versi di `package.json`
+- Bump the version in `package.json`
 - Update `CHANGELOG.md`
-- Fix bug ringan yang ditemukan saat testing release (bukan fitur baru)
+- Minor bug fixes found while testing the release (not new features)
 
-### Hal yang TIDAK BOLEH dilakukan di release branch
+### What is NOT allowed on a release branch
 
-- Menambah fitur baru
-- Refactor besar
-- Merge fitur baru dari develop
+- Adding new features
+- Large refactors
+- Merging new features from develop
 
 ---
 
 ## 8. Hotfix Production
 
-Digunakan ketika ada **bug kritis di production** yang tidak bisa menunggu release cycle normal.
+Used when there is a **critical bug in production** that cannot wait for the normal release cycle.
 
 ```bash
-# 1. Branch dari main (bukan develop!)
+# 1. Branch from main (not develop!)
 git checkout main
 git pull origin main
 git checkout -b hotfix/critical-payment-crash
 
-# 2. Fix bug, commit
+# 2. Fix the bug, commit
 git add src/components/pos/PaymentModal.tsx
 git commit -m "fix: prevent double-submit crash on payment confirmation"
 
-# 3. Push dan buat PR ke main
+# 3. Push and create a PR to main
 git push origin hotfix/critical-payment-crash
 # PR → main, Merge commit
 
-# 4. Setelah merge ke main: bump PATCH version + tag
+# 4. After merging into main: bump PATCH version + tag
 git checkout main
 git pull origin main
 # Edit package.json: 1.1.0 → 1.1.1
@@ -381,7 +381,7 @@ git tag -a v1.1.1 -m "Hotfix v1.1.1 — payment double-submit crash"
 git push origin main
 git push origin v1.1.1
 
-# 5. Back-merge ke develop (WAJIB agar fix tidak hilang)
+# 5. Back-merge into develop (REQUIRED so the fix is not lost)
 git checkout develop
 git pull origin develop
 git merge main --no-ff -m "chore: back-merge hotfix v1.1.1 into develop"
@@ -392,13 +392,13 @@ git push origin develop
 
 ## 9. Cheat Sheet
 
-### Alur Sehari-hari
+### Daily Flow
 
 ```
-develop → branch → kerja → PR (squash) → develop
+develop → branch → work → PR (squash) → develop
 ```
 
-### Alur Release
+### Release Flow
 
 ```
 develop → release/vX.Y.Z → bump + changelog → PR (merge commit) → main
@@ -408,7 +408,7 @@ develop → release/vX.Y.Z → bump + changelog → PR (merge commit) → main
                                                           back-merge → develop
 ```
 
-### Alur Hotfix
+### Hotfix Flow
 
 ```
 main → hotfix/xxx → fix → PR (merge commit) → main → tag → back-merge → develop
@@ -428,29 +428,29 @@ main      → develop   : MERGE COMMIT
 ### Versioning Summary
 
 ```
-Bug fix kecil     → PATCH  (1.0.0 → 1.0.1)
-Fitur baru        → MINOR  (1.0.1 → 1.1.0)
+Small bug fix     → PATCH  (1.0.0 → 1.0.1)
+New feature       → MINOR  (1.0.1 → 1.1.0)
 Breaking change   → MAJOR  (1.1.0 → 2.0.0)
 ```
 
-### Git Commands Sering Dipakai
+### Frequently Used Git Commands
 
 ```bash
-# Lihat semua branch
+# List all branches
 git branch -a
 
-# Hapus branch lokal yang sudah merged
-git branch -d nama-branch
+# Delete local branches that are already merged
+git branch -d branch-name
 
-# Hapus branch remote
-git push origin --delete nama-branch
+# Delete a remote branch
+git push origin --delete branch-name
 
-# Lihat tag
+# List tags
 git tag -l
 
-# Lihat log dengan graph
+# Show log with graph
 git log --oneline --graph --decorate --all
 
-# Lihat semua merge commit
+# Show all merge commits
 git log --merges --oneline
 ```

@@ -2,53 +2,53 @@
 
 > **Developers:** coding standards, git workflow, how to add a feature and how versioning works are in [`docs/`](docs/README.md) (English).
 
-Panduan lengkap dari nol sampai server bisa dijalankan dan diintegrasikan dengan aplikasi React Native.
+A complete guide from zero to a running server integrated with the React Native app.
 
 ---
 
-## Daftar Isi
+## Table of Contents
 
-1. [Prasyarat](#1-prasyarat)
+1. [Prerequisites](#1-prerequisites)
 2. [Install PostgreSQL](#2-install-postgresql)
-3. [Install pgAdmin (GUI Database)](#3-install-pgadmin-gui-database)
+3. [Install pgAdmin (Database GUI)](#3-install-pgadmin-database-gui)
 4. [Clone & Install Dependencies](#4-clone--install-dependencies)
 5. [Setup Environment Variables](#5-setup-environment-variables)
 6. [Setup Database](#6-setup-database)
-7. [Jalankan Server](#7-jalankan-server)
-8. [Test API](#8-test-api)
-9. [Integrasi dengan React Native](#9-integrasi-dengan-react-native)
-10. [Perintah Sehari-hari](#10-perintah-sehari-hari)
-11. [Struktur Project](#11-struktur-project)
+7. [Run the Server](#7-run-the-server)
+8. [Test the API](#8-test-the-api)
+9. [Integration with React Native](#9-integration-with-react-native)
+10. [Daily Commands](#10-daily-commands)
+11. [Project Structure](#11-project-structure)
 12. [Troubleshooting](#12-troubleshooting)
 
 ---
 
-## 1. Prasyarat
+## 1. Prerequisites
 
-Pastikan hal-hal berikut sudah terinstall sebelum memulai:
+Make sure the following are installed before you start:
 
-| Tool | Versi Minimum | Cek dengan |
+| Tool | Minimum Version | Check with |
 |------|--------------|------------|
 | Node.js | 20.12.0+ | `node --version` |
 | npm | 9+ | `npm --version` |
-| Homebrew (Mac) | terbaru | `brew --version` |
+| Homebrew (Mac) | latest | `brew --version` |
 
-### Install Node.js (jika belum ada)
+### Install Node.js (if not installed yet)
 
 ```bash
-# Install nvm (Node Version Manager) dulu
+# Install nvm (Node Version Manager) first
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 
-# Restart terminal, lalu install Node.js versi terbaru
+# Restart your terminal, then install the latest Node.js version
 nvm install 22
 nvm use 22
 nvm alias default 22
 
-# Verifikasi
-node --version  # harusnya v22.x.x
+# Verify
+node --version  # should be v22.x.x
 ```
 
-### Install Homebrew (Mac, jika belum ada)
+### Install Homebrew (Mac, if not installed yet)
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -58,7 +58,7 @@ node --version  # harusnya v22.x.x
 
 ## 2. Install PostgreSQL
 
-PostgreSQL adalah database yang digunakan project ini. Analoginya seperti "gudang data" tempat semua informasi (produk, transaksi, user, dll) disimpan secara permanen.
+PostgreSQL is the database this project uses. Think of it as a "data warehouse" where all information (products, transactions, users, etc.) is stored permanently.
 
 ### Install via Homebrew
 
@@ -66,67 +66,67 @@ PostgreSQL adalah database yang digunakan project ini. Analoginya seperti "gudan
 brew install postgresql@14
 ```
 
-### Jalankan PostgreSQL otomatis saat Mac hidup
+### Start PostgreSQL automatically when the Mac boots
 
 ```bash
 brew services start postgresql@14
 ```
 
-### Verifikasi PostgreSQL berjalan
+### Verify PostgreSQL is running
 
 ```bash
 pg_ctl status -D /opt/homebrew/var/postgresql@14
-# Harusnya muncul: "server is running"
+# You should see: "server is running"
 ```
 
-### Cek username PostgreSQL kamu
+### Check your PostgreSQL username
 
-Username PostgreSQL otomatis sama dengan username Mac kamu:
+Your PostgreSQL username is automatically the same as your Mac username:
 
 ```bash
 whoami
-# Contoh output: dikomahendra
+# Example output: dikomahendra
 ```
 
-> **Catatan:** Username ini yang nanti dipakai di `DATABASE_URL` di file `.env`.
+> **Note:** You will use this username later in `DATABASE_URL` in the `.env` file.
 
 ---
 
-## 3. Install pgAdmin (GUI Database)
+## 3. Install pgAdmin (Database GUI)
 
-pgAdmin adalah aplikasi visual untuk melihat dan mengelola database — seperti "Finder" tapi untuk data.
+pgAdmin is a visual app for browsing and managing databases — like "Finder" but for data.
 
 ### Download
 
-Buka [pgadmin.org/download/pgadmin-4-macos](https://www.pgadmin.org/download/pgadmin-4-macos/) dan download versi terbaru.
+Open [pgadmin.org/download/pgadmin-4-macos](https://www.pgadmin.org/download/pgadmin-4-macos/) and download the latest version.
 
 - Mac chip **Apple Silicon (M1/M2/M3/M4)** → download **ARM64**
 - Mac chip **Intel** → download **x86_64**
 
-> Cek chip Mac kamu: klik logo Apple → **About This Mac** → lihat bagian **Chip** atau **Processor**.
+> Check your Mac's chip: click the Apple logo → **About This Mac** → look at **Chip** or **Processor**.
 
-### Koneksi ke PostgreSQL lokal
+### Connect to local PostgreSQL
 
-Setelah pgAdmin terbuka:
+Once pgAdmin is open:
 
-1. Klik kanan **Servers** → **Register** → **Server...**
-2. Tab **General** → Name: `CashierMu Local`
-3. Tab **Connection**:
+1. Right-click **Servers** → **Register** → **Server...**
+2. **General** tab → Name: `CashierMu Local`
+3. **Connection** tab:
    - Host: `localhost`
    - Port: `5432`
-   - Username: isi dengan hasil `whoami` tadi (contoh: `dikomahendra`)
-   - Password: kosongkan
-4. Klik **Save**
+   - Username: enter the `whoami` result from earlier (example: `dikomahendra`)
+   - Password: leave empty
+4. Click **Save**
 
 ---
 
 ## 4. Clone & Install Dependencies
 
 ```bash
-# Masuk ke folder project
+# Go into the project folder
 cd server-cashiermu
 
-# Install semua package yang dibutuhkan
+# Install all required packages
 npm install
 ```
 
@@ -134,30 +134,30 @@ npm install
 
 ## 5. Setup Environment Variables
 
-Environment variables adalah konfigurasi rahasia yang tidak di-commit ke Git (seperti password database, JWT secret, dll).
+Environment variables are secret configuration that is not committed to Git (such as the database password, JWT secrets, etc.).
 
-### Buat file `.env`
+### Create the `.env` file
 
 ```bash
 cp .env.example .env
 ```
 
-### Edit file `.env`
+### Edit the `.env` file
 
-Buka file `.env` dan sesuaikan nilainya:
+Open the `.env` file and adjust the values:
 
 ```env
 NODE_ENV=development
 PORT=3000
 
-# Ganti "whoami_usernamemu" dengan hasil perintah: whoami
+# Replace "whoami_usernamemu" with the output of: whoami
 DATABASE_URL=postgresql://whoami_usernamemu@localhost:5432/cashiermu
 
-# Generate string acak panjang untuk keamanan JWT
-# Jalankan perintah ini di terminal untuk mendapatkan nilainya:
+# Generate a long random string for JWT security
+# Run this command in the terminal to get the value:
 # node -e "const c=require('crypto');console.log(c.randomBytes(32).toString('hex'))"
-JWT_ACCESS_SECRET=isi_dengan_string_acak_panjang_minimal_32_karakter
-JWT_REFRESH_SECRET=isi_dengan_string_acak_panjang_yang_berbeda
+JWT_ACCESS_SECRET=fill_with_a_long_random_string_at_least_32_characters
+JWT_REFRESH_SECRET=fill_with_a_different_long_random_string
 
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
@@ -167,9 +167,9 @@ MAX_LOGIN_ATTEMPTS=5
 LOGIN_LOCKOUT_MINUTES=5
 ```
 
-### Generate JWT Secret
+### Generate the JWT Secret
 
-Jalankan perintah ini dua kali (untuk ACCESS dan REFRESH), copy hasilnya ke `.env`:
+Run this command twice (for ACCESS and REFRESH) and copy the results into `.env`:
 
 ```bash
 node -e "const c=require('crypto');console.log(c.randomBytes(32).toString('hex'))"
@@ -179,35 +179,35 @@ node -e "const c=require('crypto');console.log(c.randomBytes(32).toString('hex')
 
 ## 6. Setup Database
 
-### Buat database `cashiermu`
+### Create the `cashiermu` database
 
 ```bash
 psql postgres -c "CREATE DATABASE cashiermu;"
 ```
 
-### Jalankan migrasi
+### Run the migration
 
-Migrasi = perintah untuk membuat semua tabel di database berdasarkan `prisma/schema.prisma`. Analoginya seperti "deploy struktur spreadsheet" ke database.
+A migration is a command that creates all the tables in the database based on `prisma/schema.prisma`. Think of it as "deploying a spreadsheet structure" to the database.
 
 ```bash
 npx prisma migrate dev --name init
 ```
 
-Output yang diharapkan:
+Expected output:
 ```
 ✔ Generated Prisma Client
 ✔ Applied 1 migration
 ```
 
-### Isi data awal (seed)
+### Fill in initial data (seed)
 
-Seed = mengisi database dengan data dummy untuk development (user, produk, cabang, dll).
+Seeding fills the database with dummy data for development (users, products, branches, etc.).
 
 ```bash
 npm run db:seed
 ```
 
-Output yang diharapkan:
+Expected output:
 ```
 🌱 Seeding database...
 ✅ Seed complete!
@@ -218,36 +218,36 @@ Output yang diharapkan:
    Kasir2 → email: ahmad@cashiermu.com   PIN: 222222
 ```
 
-### Verifikasi di pgAdmin
+### Verify in pgAdmin
 
-Buka pgAdmin → **CashierMu Local** → **Databases** → **cashiermu** → **Schemas** → **Tables**
+Open pgAdmin → **CashierMu Local** → **Databases** → **cashiermu** → **Schemas** → **Tables**
 
-Harusnya terlihat tabel-tabel: `User`, `Product`, `Transaction`, dll.
+You should see tables such as: `User`, `Product`, `Transaction`, dll.
 
 ---
 
-## 7. Jalankan Server
+## 7. Run the Server
 
 ```bash
 npm run dev
 ```
 
-Output yang diharapkan:
+Expected output:
 ```
 info: CashierMu API running on port 3000 in development mode
 ```
 
-Server sekarang berjalan di `http://localhost:3000`.
+The server is now running at `http://localhost:3000`.
 
-> Server akan otomatis restart setiap kali kamu menyimpan perubahan kode (hot reload via nodemon).
+> The server restarts automatically every time you save a code change (hot reload via nodemon).
 
 ---
 
-## 8. Test API
+## 8. Test the API
 
-### Cara 1 — curl (via Terminal)
+### Option 1 — curl (via Terminal)
 
-**Cek server hidup:**
+**Check that the server is up:**
 ```bash
 curl http://localhost:3000/health
 # Output: {"status":"ok","timestamp":"..."}
@@ -260,68 +260,68 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
   -d '{"credential":"budi@cashiermu.com","pin":"123456"}'
 ```
 
-Output: kamu akan mendapatkan `accessToken` dan `refreshToken`.
+Output: you will get an `accessToken` and a `refreshToken`.
 
-**Akses endpoint yang butuh login** (gunakan accessToken dari login):
+**Access an endpoint that requires login** (use the accessToken from login):
 ```bash
 curl http://localhost:3000/api/v1/store \
-  -H "Authorization: Bearer PASTE_ACCESS_TOKEN_DISINI"
+  -H "Authorization: Bearer PASTE_ACCESS_TOKEN_HERE"
 ```
 
-### Cara 2 — Postman (Rekomendasi, lebih nyaman)
+### Option 2 — Postman (Recommended, more convenient)
 
-1. Download **Postman** di [postman.com](https://www.postman.com/) (gratis)
-2. Buat request baru → `POST` → `http://localhost:3000/api/v1/auth/login`
-3. Tab **Body** → **raw** → **JSON** → isi:
+1. Download **Postman** from [postman.com](https://www.postman.com/) (free)
+2. Create a new request → `POST` → `http://localhost:3000/api/v1/auth/login`
+3. **Body** tab → **raw** → **JSON** → enter:
    ```json
    {
      "credential": "budi@cashiermu.com",
      "pin": "123456"
    }
    ```
-4. Klik **Send** → copy `accessToken` dari response
-5. Untuk endpoint lain, tambahkan di tab **Authorization** → **Bearer Token** → paste token
+4. Click **Send** → copy the `accessToken` from the response
+5. For other endpoints, add it in the **Authorization** tab → **Bearer Token** → paste the token
 
-### Cara 3 — Prisma Studio (lihat data visual)
+### Option 3 — Prisma Studio (visual data browser)
 
 ```bash
 npx prisma studio
 ```
 
-Buka `http://localhost:5555` — bisa lihat semua tabel dan data langsung dari browser.
+Open `http://localhost:5555` — you can see all tables and data directly in the browser.
 
 ---
 
-## 9. Integrasi dengan React Native
+## 9. Integration with React Native
 
-Setelah server berjalan, ganti semua data dummy di aplikasi React Native dengan API call ke server ini.
+Once the server is running, replace all dummy data in the React Native app with API calls to this server.
 
 ### Base URL
 
 | Environment | URL |
 |-------------|-----|
 | Development (emulator) | `http://localhost:3000` |
-| Development (device fisik) | `http://IP_MAC_KAMU:3000` |
+| Development (physical device) | `http://YOUR_MAC_IP:3000` |
 
-> Cek IP Mac kamu: **System Settings** → **Wi-Fi** → **Details** → lihat IP Address. Pastikan HP dan Mac terhubung ke Wi-Fi yang sama.
+> Check your Mac's IP: **System Settings** → **Wi-Fi** → **Details** → look at the IP Address. Make sure your phone and Mac are on the same Wi-Fi network.
 
-### Urutan Integrasi (sesuai `BACKEND_PROMPT.md`)
+### Integration Order (following `BACKEND_PROMPT.md`)
 
-Ganti dummy data di Zustand store satu per satu, mulai dari:
+Replace the dummy data in the Zustand store one by one, starting with:
 
-1. **Login** → `POST /api/v1/auth/login` — ganti `useAppStore.login()`
-2. **Store profile** → `GET /api/v1/store` — ganti `DUMMY_STORE_PROFILE`
-3. **Branches** → `GET /api/v1/branches` — ganti `DUMMY_BRANCHES`
-4. **Categories** → `GET /api/v1/categories` — ganti `DUMMY_CATEGORIES`
-5. **Products** → `GET /api/v1/products` — ganti `DUMMY_PRODUCTS`
+1. **Login** → `POST /api/v1/auth/login` — replace `useAppStore.login()`
+2. **Store profile** → `GET /api/v1/store` — replace `DUMMY_STORE_PROFILE`
+3. **Branches** → `GET /api/v1/branches` — replace `DUMMY_BRANCHES`
+4. **Categories** → `GET /api/v1/categories` — replace `DUMMY_CATEGORIES`
+5. **Products** → `GET /api/v1/products` — replace `DUMMY_PRODUCTS`
 6. **Shift** → `POST /api/v1/shifts/open` + `GET /api/v1/shifts/current`
-7. **Transaksi** → `POST /api/v1/transactions`
-8. **Riwayat transaksi** → `GET /api/v1/transactions`
-9. **Void transaksi** → `POST /api/v1/transactions/:id/void`
-10. **Laporan** → `GET /api/v1/reports/chart` + `/summary`
-11. **Karyawan** → `GET /api/v1/users` + `POST /api/v1/users`
+7. **Transactions** → `POST /api/v1/transactions`
+8. **Transaction history** → `GET /api/v1/transactions`
+9. **Void transaction** → `POST /api/v1/transactions/:id/void`
+10. **Reports** → `GET /api/v1/reports/chart` + `/summary`
+11. **Employees** → `GET /api/v1/users` + `POST /api/v1/users`
 
-### Contoh API call dari React Native (Axios)
+### Example API call from React Native (Axios)
 
 ```typescript
 import axios from 'axios';
@@ -337,63 +337,63 @@ const response = await api.post('/auth/login', {
 });
 const { accessToken, user } = response.data;
 
-// Simpan token (gunakan expo-secure-store, JANGAN AsyncStorage)
+// Store the token (use expo-secure-store, NOT AsyncStorage)
 await SecureStore.setItemAsync('accessToken', accessToken);
 
-// Request dengan token
+// Request with the token
 api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 const products = await api.get('/products');
 ```
 
 ---
 
-## 10. Perintah Sehari-hari
+## 10. Daily Commands
 
-| Perintah | Fungsi |
+| Command | Purpose |
 |----------|--------|
-| `npm run dev` | Jalankan server (development) |
-| `npm run build` | Build untuk production |
-| `npx prisma studio` | Buka UI visual database |
-| `npx prisma migrate dev --name nama` | Buat migrasi baru setelah ubah schema |
-| `npm run db:seed` | Reset dan isi ulang data dummy |
-| `npx prisma generate` | Regenerate Prisma Client setelah ubah schema |
+| `npm run dev` | Run the server (development) |
+| `npm run build` | Build for production |
+| `npx prisma studio` | Open the visual database UI |
+| `npx prisma migrate dev --name name` | Create a new migration after changing the schema |
+| `npm run db:seed` | Reset and re-seed the dummy data |
+| `npx prisma generate` | Regenerate the Prisma Client after changing the schema |
 
 ---
 
-## 11. Struktur Project
+## 11. Project Structure
 
 ```
 server-cashiermu/
 ├── prisma/
-│   ├── schema.prisma      # Definisi semua tabel database
-│   └── seed.ts            # Script isi data dummy
+│   ├── schema.prisma      # Definition of all database tables
+│   └── seed.ts            # Script that fills in dummy data
 ├── src/
 │   ├── config/
-│   │   ├── env.ts         # Baca variabel dari .env
-│   │   └── database.ts    # Koneksi ke PostgreSQL via Prisma
+│   │   ├── env.ts         # Reads variables from .env
+│   │   └── database.ts    # PostgreSQL connection via Prisma
 │   ├── middleware/
-│   │   ├── authenticate.ts  # Verifikasi JWT token
-│   │   ├── requireRole.ts   # Cek role (owner/cashier)
-│   │   ├── validate.ts      # Validasi request body (Zod)
-│   │   └── errorHandler.ts  # Handle error global
-│   ├── modules/           # Setiap fitur punya folder sendiri
+│   │   ├── authenticate.ts  # Verifies the JWT token
+│   │   ├── requireRole.ts   # Checks the role (owner/cashier)
+│   │   ├── validate.ts      # Validates the request body (Zod)
+│   │   └── errorHandler.ts  # Global error handling
+│   ├── modules/           # Each feature has its own folder
 │   │   ├── auth/          # Login, logout, refresh token
-│   │   ├── store/         # Profil toko
-│   │   ├── users/         # Manajemen karyawan
-│   │   ├── branches/      # Manajemen cabang
-│   │   ├── categories/    # Kategori produk
-│   │   ├── products/      # Manajemen produk & stok
-│   │   ├── shifts/        # Buka/tutup shift kasir
-│   │   ├── transactions/  # Transaksi & void
-│   │   ├── pending-bills/ # Tagihan pending (hold order)
-│   │   └── reports/       # Laporan penjualan
+│   │   ├── store/         # Store profile
+│   │   ├── users/         # Employee management
+│   │   ├── branches/      # Branch management
+│   │   ├── categories/    # Product categories
+│   │   ├── products/      # Product and stock management
+│   │   ├── shifts/        # Open/close cashier shifts
+│   │   ├── transactions/  # Transactions and voids
+│   │   ├── pending-bills/ # Pending bills (hold order)
+│   │   └── reports/       # Sales reports
 │   ├── utils/
-│   │   ├── invoice.ts     # Generate nomor invoice
-│   │   ├── pagination.ts  # Helper pagination
+│   │   ├── invoice.ts     # Generates invoice numbers
+│   │   ├── pagination.ts  # Pagination helper
 │   │   └── logger.ts      # Logging (Winston)
-│   └── app.ts             # Entry point server
-├── .env                   # Konfigurasi rahasia (jangan di-commit!)
-├── .env.example           # Template .env
+│   └── app.ts             # Server entry point
+├── .env                   # Secret configuration (do not commit!)
+├── .env.example           # .env template
 ├── package.json
 └── tsconfig.json
 ```
@@ -403,32 +403,32 @@ server-cashiermu/
 ## 12. Troubleshooting
 
 ### Error: `Can't reach database server`
-Pastikan PostgreSQL berjalan:
+Make sure PostgreSQL is running:
 ```bash
 brew services start postgresql@14
 ```
 
 ### Error: `relation does not exist`
-Migrasi belum dijalankan:
+The migration has not been run:
 ```bash
 npx prisma migrate dev --name init
 ```
 
 ### Error: `JWT_ACCESS_SECRET is required`
-File `.env` belum dibuat atau JWT secret masih placeholder. Pastikan sudah mengikuti [Langkah 5](#5-setup-environment-variables).
+The `.env` file has not been created, or the JWT secret is still a placeholder. Make sure you followed [Step 5](#5-setup-environment-variables).
 
 ### Error: `Port 3000 already in use`
-Ada proses lain yang pakai port 3000:
+Another process is using port 3000:
 ```bash
-# Cari proses yang pakai port 3000
+# Find the process using port 3000
 lsof -i :3000
 
-# Kill prosesnya (ganti PID dengan angka dari output di atas)
+# Kill the process (replace PID with the number from the output above)
 kill -9 PID
 ```
 
-### Setelah ubah `schema.prisma`, tabel tidak berubah
-Jalankan migrasi baru:
+### After changing `schema.prisma`, the tables did not change
+Run a new migration:
 ```bash
-npx prisma migrate dev --name deskripsi_perubahan
+npx prisma migrate dev --name change_description
 ```

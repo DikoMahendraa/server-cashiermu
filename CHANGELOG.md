@@ -1,7 +1,7 @@
 # Changelog — CashierMu API (Backend)
 
-Semua perubahan signifikan pada project ini didokumentasikan di sini.
-Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+All notable changes to this project are documented here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
@@ -9,174 +9,174 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Deploy ke VPS dengan Docker.** `Dockerfile` (dua tahap, berjalan sebagai user non-root, healthcheck) dan folder `deploy/`: `docker-compose.prod.yml` (PostgreSQL + API + Caddy untuk HTTPS otomatis; database tidak membuka port; `/metrics` disembunyikan dari internet), `Caddyfile`, `.env.example`, `backup.sh` (dump harian + salinan di luar server) dan `restore-test.sh` (membuktikan backup bisa dipulihkan di database sementara). Panduan langkah demi langkah: `docs/15-deployment.md`.
+- **Deploy to a VPS with Docker.** `Dockerfile` (two stages, runs as a non-root user, healthcheck) and the `deploy/` folder: `docker-compose.prod.yml` (PostgreSQL + API + Caddy for automatic HTTPS; the database does not expose a port; `/metrics` is hidden from the internet), `Caddyfile`, `.env.example`, `backup.sh` (daily dump + off-server copy) and `restore-test.sh` (proves a backup can be restored into a temporary database). Step-by-step guide: `docs/15-deployment.md`.
 
 ### Changed
 
-- `prisma` (CLI migrasi) dipindah ke `dependencies` supaya `prisma migrate deploy` bisa dijalankan di image production.
+- `prisma` (the migration CLI) moved to `dependencies` so that `prisma migrate deploy` can run in the production image.
 
 ## [1.8.1] — 2026-10-18
 
-> **Catatan upgrade (penting):** tidak ada migration database. **Sebelum deploy**, periksa `.env` production: server kini **menolak start** bila `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` pendek (< 32 karakter), sama satu sama lain, atau masih berupa contoh, atau bila `DATABASE_URL` masih kredensial contoh. Set juga `TRUST_PROXY` (jumlah reverse proxy di depan API, biasanya `1`), `PUBLIC_BASE_URL`, dan bila memakai Grafana `METRICS_TOKEN` + `LOG_FILE`. Daftar lengkap: `docs/14-production-checklist.md`.
-> **Kompatibilitas app:** app versi lama tetap berjalan. Respons 500 kini berbentuk `{ code, message, requestId }`.
+> **Upgrade note (important):** there is no database migration. **Before deploying**, check the production `.env`: the server now **refuses to start** if `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` are short (< 32 characters), identical to each other, or still example values, or if `DATABASE_URL` still holds example credentials. Also set `TRUST_PROXY` (the number of reverse proxies in front of the API, usually `1`), `PUBLIC_BASE_URL`, and, if you use Grafana, `METRICS_TOKEN` + `LOG_FILE`. Full list: `docs/14-production-checklist.md`.
+> **App compatibility:** older app versions keep working. 500 responses now have the shape `{ code, message, requestId }`.
 
 ### Security
 
-- **Server berhenti saat konfigurasi production berbahaya**: secret JWT contoh/pendek/sama, atau kredensial database contoh (`src/config/validate-env.ts`). Pengaturan berisiko lain (mis. `TRUST_PROXY` kosong) dicatat sebagai peringatan saat start.
-- **`TRUST_PROXY`** (baru): jumlah reverse proxy di depan API. Tanpa ini, di belakang proxy semua pengguna terlihat memakai satu IP sehingga beberapa login gagal bisa mengunci semua toko. Lihat `docs/14-production-checklist.md`.
-- Respons 500 tidak lagi membocorkan pesan error internal di production; mengembalikan `code: INTERNAL_ERROR` dan `requestId`. Setiap respons membawa header `X-Request-Id`.
-- `helmet` (header keamanan) dan penghapusan `X-Powered-By`.
-- Penguncian login kini per alamat **dan** per akun, dibatasi ukurannya (sebelumnya map tanpa batas), dan waktu respons untuk akun yang tidak ada sama dengan PIN salah.
-- `POST /auth/check-credential`: batas sendiri (30 per 15 menit) dan hanya mengembalikan `id`, `name`, `role`, `avatarUrl` (tanpa `storeId`/`branchId`).
+- **The server stops on a dangerous production configuration**: example/short/identical JWT secrets, or example database credentials (`src/config/validate-env.ts`). Other risky settings (e.g. an empty `TRUST_PROXY`) are logged as warnings at startup.
+- **`TRUST_PROXY`** (new): the number of reverse proxies in front of the API. Without it, behind a proxy all users appear to share a single IP, so a few failed logins could lock out every store. See `docs/14-production-checklist.md`.
+- 500 responses no longer leak internal error messages in production; they return `code: INTERNAL_ERROR` and `requestId`. Every response carries an `X-Request-Id` header.
+- `helmet` (security headers) and removal of `X-Powered-By`.
+- Login lockout is now per address **and** per account, with a bounded size (previously an unbounded map), and the response time for a nonexistent account matches that of a wrong PIN.
+- `POST /auth/check-credential`: its own rate limit (30 per 15 minutes) and it only returns `id`, `name`, `role`, `avatarUrl` (without `storeId`/`branchId`).
 
 ### Added
 
-- **Monitoring Grafana.** `GET /metrics` (Prometheus, wajib `Authorization: Bearer <METRICS_TOKEN>`; nonaktif di production bila token kosong) dengan durasi request per pola route, checkout (online/offline, kode error), login, `cashiermu_db_up`, dan metrik Node. Log JSON terstruktur (`LOG_FILE`) berisi `requestId`, route, status, durasi (tanpa URL/body/nama/telepon). Folder `monitoring/`: `docker-compose.yml` (Prometheus, Loki, Alloy, Grafana), dua dashboard (Backend, App), 8 aturan alert, dan konfigurasi Alloy untuk lokal dan Grafana Cloud. Jalankan `npm run monitoring:up`. Lihat `docs/13-monitoring.md`.
-- Variabel baru: `TRUST_PROXY`, `METRICS_TOKEN`, `LOG_LEVEL`, `LOG_FILE`. `morgan` diganti log terstruktur.
+- **Grafana monitoring.** `GET /metrics` (Prometheus, requires `Authorization: Bearer <METRICS_TOKEN>`; disabled in production when the token is empty) with request duration per route pattern, checkout (online/offline, error code), login, `cashiermu_db_up`, and Node metrics. Structured JSON logs (`LOG_FILE`) contain `requestId`, route, status, and duration (without URL/body/name/phone). The `monitoring/` folder: `docker-compose.yml` (Prometheus, Loki, Alloy, Grafana), two dashboards (Backend, App), 8 alert rules, and Alloy configuration for local and Grafana Cloud. Run `npm run monitoring:up`. See `docs/13-monitoring.md`.
+- New variables: `TRUST_PROXY`, `METRICS_TOKEN`, `LOG_LEVEL`, `LOG_FILE`. `morgan` was replaced by structured logging.
 
 ## [1.8.0] — 2026-10-18
 
-> **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261023100000_offline_sales`, hanya menambah kolom; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru.
-> **Kompatibilitas app:** app versi lama tetap berjalan; mode offline butuh app ≥ 1.8.0.
+> **Upgrade note (important):** this release brings **1 database migration** (`20261023100000_offline_sales`, only adds columns; existing data is intact). Back up the database, then run `npx prisma migrate deploy` before starting the new server.
+> **App compatibility:** older app versions keep working; offline mode requires app ≥ 1.8.0.
 
 ### Added
 
-- **Transaksi offline.** Migration `20261023100000_offline_sales` menambah `Transaction.syncedAt`, `offlineReceiptNumber` dan `offlineIssues`. `POST /transactions` menerima blok opsional `offline: { createdAt, receiptNumber }` untuk transaksi yang dibuat saat HP tidak terhubung dan dikirim belakangan:
-  - Waktu transaksi disimpan sesuai kejadian asli (tidak boleh lebih dari 5 menit di masa depan, `OFFLINE_SALE_IN_FUTURE`; atau lebih dari 30 hari, `OFFLINE_SALE_TOO_OLD`).
-  - Harga yang sudah berubah tetap memakai harga yang dilihat pelanggan, **hanya jika** produk/pengaturan toko memang diubah setelah transaksi terjadi; selain itu tetap `PRICE_CHANGED`. Dicatat sebagai `PRICE_ADJUSTED`.
-  - Stok boleh menjadi negatif (`STOCK_NEGATIVE`) dan shift yang sudah ditutup tetap menerima transaksinya (`SHIFT_CLOSED`); semuanya tercatat di `offlineIssues` untuk dicek owner.
-  - Nomor struk resmi diberikan server; nomor sementara dari HP disimpan di `offlineReceiptNumber`. Idempotency key yang sama tidak pernah membuat transaksi ganda. Lihat `docs/12-offline-sales.md`.
+- **Offline transactions.** Migration `20261023100000_offline_sales` adds `Transaction.syncedAt`, `offlineReceiptNumber` and `offlineIssues`. `POST /transactions` accepts an optional `offline: { createdAt, receiptNumber }` block for transactions created while the phone was offline and submitted later:
+  - The transaction time is stored as the original event time (it may not be more than 5 minutes in the future, `OFFLINE_SALE_IN_FUTURE`; or more than 30 days old, `OFFLINE_SALE_TOO_OLD`).
+  - A changed price still uses the price the customer saw, **only if** the product/store settings were actually changed after the transaction happened; otherwise it is still `PRICE_CHANGED`. Recorded as `PRICE_ADJUSTED`.
+  - Stock may go negative (`STOCK_NEGATIVE`) and an already-closed shift still accepts its transactions (`SHIFT_CLOSED`); all of these are recorded in `offlineIssues` for the owner to review.
+  - The official receipt number is assigned by the server; the temporary number from the phone is stored in `offlineReceiptNumber`. The same idempotency key never creates a duplicate transaction. See `docs/12-offline-sales.md`.
 
 ## [1.7.0] — 2026-10-18
 
-> **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261022100000_expenses`, hanya menambah tabel dan enum; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru.
-> **Kompatibilitas app:** app versi lama tetap berjalan (field baru pada `/reports/profit` hanya tambahan); fitur pengeluaran, laba bersih, dan kinerja karyawan butuh app ≥ 1.7.0.
+> **Upgrade note (important):** this release brings **1 database migration** (`20261022100000_expenses`, only adds a table and an enum; existing data is intact). Back up the database, then run `npx prisma migrate deploy` before starting the new server.
+> **App compatibility:** older app versions keep working (the new fields on `/reports/profit` are additive only); the expenses, net profit, and employee performance features require app ≥ 1.7.0.
 
 ### Added
 
-- **Pengeluaran dan laba bersih** (khusus owner). Migration `20261022100000_expenses` menambah tabel `Expense` (kategori tetap: sewa, gaji, listrik/air/internet, transportasi, promosi, perlengkapan, lainnya) dan enum `ExpenseCategory`. Pembelian stok untuk dijual **bukan** pengeluaran (sudah masuk HPP).
-  - `GET/POST /expenses`, `PATCH/DELETE /expenses/:id`. Cabang yang dikirim harus milik toko (`422 BRANCH_NOT_FOUND`).
-  - `GET /reports/profit` kini mengembalikan `expenses`, `netProfit` dan `netMarginPct` (bernilai `null` bila difilter per karyawan, karena pengeluaran tidak melekat pada kasir).
-- **Kinerja karyawan** — `GET /reports/employee-performance`: penjualan bersih, rata-rata per transaksi, laba kotor, porsi penjualan, dan transaksi yang dibatalkan per karyawan.
-- **Ekspor tabel** — `GET /reports/export/:dataset` (`transactions`, `expenses`, `employees`; maks. 5.000 baris, waktu WIB). Teks berawalan `=`, `+`, `-`, `@` diberi awalan `'` agar tidak dieksekusi sebagai rumus spreadsheet. Lihat `docs/11-expenses-and-reports.md`. PDF dibuat di aplikasi dari tabel yang sama.
+- **Expenses and net profit** (owner only). Migration `20261022100000_expenses` adds the `Expense` table (fixed categories: rent, salaries, electricity/water/internet, transportation, promotion, supplies, other) and the `ExpenseCategory` enum. Stock purchased for resale is **not** an expense (it is already part of COGS).
+  - `GET/POST /expenses`, `PATCH/DELETE /expenses/:id`. The submitted branch must belong to the store (`422 BRANCH_NOT_FOUND`).
+  - `GET /reports/profit` now returns `expenses`, `netProfit` and `netMarginPct` (`null` when filtered by employee, because expenses are not attributable to a cashier).
+- **Employee performance** — `GET /reports/employee-performance`: net sales, average per transaction, gross profit, share of sales, and voided transactions per employee.
+- **Table export** — `GET /reports/export/:dataset` (`transactions`, `expenses`, `employees`; max. 5,000 rows, WIB time). Text starting with `=`, `+`, `-`, `@` is prefixed with `'` so it is not executed as a spreadsheet formula. See `docs/11-expenses-and-reports.md`. The PDF is generated in the app from the same table.
 
 ## [1.6.0] — 2026-10-18
 
-> **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261021100000_service_jobs_receipt_token`, hanya menambah kolom/enum; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru. Set `PUBLIC_BASE_URL` (mis. `https://api.example.com`) agar tautan struk publik bisa dibagikan.
-> **Kompatibilitas app:** app versi lama tetap berjalan; fitur pesanan Jasa & Layanan butuh app ≥ 1.6.0.
+> **Upgrade note (important):** this release brings **1 database migration** (`20261021100000_service_jobs_receipt_token`, only adds columns/enums; existing data is intact). Back up the database, then run `npx prisma migrate deploy` before starting the new server. Set `PUBLIC_BASE_URL` (e.g. `https://api.example.com`) so public receipt links can be shared.
+> **App compatibility:** older app versions keep working; the Services order feature requires app ≥ 1.6.0.
 
 ### Added
 
-- **Pelacakan pesanan untuk Jasa & Layanan.** Migration `20261021100000_service_jobs_receipt_token` menambah `Transaction.customerPhone`, `jobStatus` (`pending → in_progress → ready → completed`), `jobUpdatedAt`, `dueAt` dan `receiptToken` (+ enum `JobStatus`). Hanya toko `service` yang mendapat `jobStatus`; jenis usaha lain tidak berubah. Status pembayaran dan status pekerjaan terpisah.
-  - `POST /transactions` menerima `customerPhone` (8–15 digit) dan `dueAt`.
-  - `GET /transactions?jobStatus=open|<status>` (kasir melihat seluruh toko untuk filter ini agar shift berikutnya bisa melanjutkan), `PATCH /transactions/:id/job`, `POST /transactions/:id/receipt-link`. Error: `NOT_A_JOB`, `TRANSACTION_VOIDED`.
-- **Halaman struk publik `GET /r/:token`** (tanpa login, token acak 192-bit): nama usaha, item, total dan status pesanan terbaru; tanpa nama kasir/id internal; HTML di-escape, dibatasi per IP, tidak di-index, tanpa script. Set `PUBLIC_BASE_URL` di production (kosong = link tidak ditawarkan). Lihat `docs/10-service-jobs.md`.
+- **Order tracking for Services.** Migration `20261021100000_service_jobs_receipt_token` adds `Transaction.customerPhone`, `jobStatus` (`pending → in_progress → ready → completed`), `jobUpdatedAt`, `dueAt` and `receiptToken` (+ the `JobStatus` enum). Only `service` stores get a `jobStatus`; other business types are unchanged. Payment status and job status are separate.
+  - `POST /transactions` accepts `customerPhone` (8–15 digits) and `dueAt`.
+  - `GET /transactions?jobStatus=open|<status>` (cashiers see the whole store for this filter so the next shift can pick up where the last left off), `PATCH /transactions/:id/job`, `POST /transactions/:id/receipt-link`. Errors: `NOT_A_JOB`, `TRANSACTION_VOIDED`.
+- **Public receipt page `GET /r/:token`** (no login, random 192-bit token): business name, items, total, and the latest order status; no cashier name/internal ids; HTML is escaped, rate-limited per IP, not indexed, no scripts. Set `PUBLIC_BASE_URL` in production (empty = the link is not offered). See `docs/10-service-jobs.md`.
 
 ## [1.5.0] — 2026-10-18
 
 ### Added
 
-- **Impor & ekspor produk** (khusus owner), kolom mengikuti jenis usaha toko dari `sector.config.ts`:
-  - `GET /products/import/template` (kolom, contoh isi, petunjuk), `GET /products/export` (semua item, termasuk nonaktif).
-  - `POST /products/import/preview` (hanya simulasi, tidak menulis) dan `POST /products/import` (satu transaksi database; maks. 500 baris).
-  - SKU yang sudah ada diperbarui, bukan digandakan; baris salah dilewati dengan pesan per sel sementara baris benar tetap masuk; kategori yang belum ada dibuat otomatis. Mendukung format Indonesia (`Rp 15.000`, `Ya/Tidak`, `DD/MM/YYYY`). Varian belum ikut. Lihat `docs/09-import-export.md`.
+- **Product import & export** (owner only), columns follow the store's business type from `sector.config.ts`:
+  - `GET /products/import/template` (columns, sample values, instructions), `GET /products/export` (all items, including inactive).
+  - `POST /products/import/preview` (dry run only, writes nothing) and `POST /products/import` (a single database transaction; max. 500 rows).
+  - Existing SKUs are updated, not duplicated; invalid rows are skipped with a per-cell message while valid rows still go in; categories that do not exist yet are created automatically. Supports Indonesian formats (`Rp 15.000`, `Ya/Tidak`, `DD/MM/YYYY`). Variants are not included yet. See `docs/09-import-export.md`.
 
 ## [1.4.0] — 2026-10-18
 
-> **Catatan upgrade (penting):** rilis ini membawa **3 migration database**. Backup database, lalu jalankan `npx prisma migrate deploy` **sebelum** menjalankan server versi baru. Efeknya pada data yang sudah ada:
-> - `20261018130000_add_cost_snapshot_track_stock_per_store_sku` — kolom baru `TransactionItem.costPrice` (baris penjualan lama diisi harga beli produk **saat ini**, hanya perkiraan untuk riwayat), `Product.trackStock` (produk lama = `true`), dan SKU/barcode menjadi unik **per toko**.
-> - `20261019100000_add_store_sector_product_attributes` — kolom `Store.sector` (toko lama = `general`) dan `Product.attributes` (kosong).
-> - `20261020100000_three_sectors_subtype_decimal_quantity` — enum `BusinessSector` menjadi 3 nilai (toko yang memakai jenis yang sudah dihapus otomatis menjadi `general`), kolom `Store.subtype` (`default`), `Product.allowDecimalQty` (`false`), dan `TransactionItem.quantity` dari `Int` ke `Decimal(12,3)` (nilai lama tetap utuh).
+> **Upgrade note (important):** this release brings **3 database migrations**. Back up the database, then run `npx prisma migrate deploy` **before** starting the new server version. The effect on existing data:
+> - `20261018130000_add_cost_snapshot_track_stock_per_store_sku` — new column `TransactionItem.costPrice` (old sales rows are filled with the product's **current** purchase price, only an estimate for history), `Product.trackStock` (existing products = `true`), and SKU/barcode become unique **per store**.
+> - `20261019100000_add_store_sector_product_attributes` — column `Store.sector` (existing stores = `general`) and `Product.attributes` (empty).
+> - `20261020100000_three_sectors_subtype_decimal_quantity` — the `BusinessSector` enum becomes 3 values (stores using a removed type automatically become `general`), column `Store.subtype` (`default`), `Product.allowDecimalQty` (`false`), and `TransactionItem.quantity` from `Int` to `Decimal(12,3)` (existing values stay intact).
 >
-> Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime (situs dokumentasi `/docs` mati di production kecuali `DOCS_ENABLED=true` + `DOCS_PASSWORD`).
-> **Kompatibilitas app:** semua versi app yang sudah terpasang tetap bisa checkout. App versi 1.4.0 membutuhkan backend ini.
+> Deploy the whole repo, not just `dist/` — the server reads the `docs/` folder at runtime (the `/docs` documentation site is off in production unless `DOCS_ENABLED=true` + `DOCS_PASSWORD`).
+> **App compatibility:** every app version already installed can still check out. App version 1.4.0 requires this backend.
 
 ### Added
 
-- **Laporan laba kotor — `GET /reports/profit`** (khusus owner). Filter: `from`, `to` (timestamp ISO, mis. `2026-10-01T00:00:00+07:00`), `branchId`, `userId`, `limit`. Mengembalikan `grossSales`, `discounts`, `netSales`, `cogs` (HPP), `grossProfit`, `marginPct`, pajak/service charge (dilaporkan terpisah, bukan pendapatan), rincian per karyawan, dan produk terlaris berdasarkan laba. Hanya transaksi `paid` yang dihitung.
-- **HPP tersimpan di setiap baris penjualan** (`TransactionItem.costPrice`) saat checkout, sehingga laba tetap benar walau harga beli produk berubah kemudian.
-- **`Product.trackStock`** (default `true`). Jika `false` (jasa / stok tanpa batas): checkout tidak memeriksa maupun mengurangi stok, void tidak mengembalikan stok, dan `PATCH /products/:id/stock` ditolak dengan `422 STOCK_NOT_TRACKED`. `stockStatus` selalu `safe`.
-- Error produk baru: `409 SKU_TAKEN` dan `409 BARCODE_TAKEN`.
-- Test e2e baru (`test/e2e/catalog-profit.e2e.test.ts`, `helpers.ts`) dan akun test kedua (`E2E_EMAIL_2`, `E2E_PHONE_2`) untuk membuktikan isolasi antar toko.
+- **Gross profit report — `GET /reports/profit`** (owner only). Filters: `from`, `to` (ISO timestamps, e.g. `2026-10-01T00:00:00+07:00`), `branchId`, `userId`, `limit`. Returns `grossSales`, `discounts`, `netSales`, `cogs` (COGS), `grossProfit`, `marginPct`, tax/service charge (reported separately, not revenue), a per-employee breakdown, and best-selling products by profit. Only `paid` transactions are counted.
+- **COGS stored on every sales row** (`TransactionItem.costPrice`) at checkout, so profit stays correct even if a product's purchase price changes later.
+- **`Product.trackStock`** (default `true`). When `false` (services / unlimited stock): checkout neither checks nor decrements stock, a void does not restore stock, and `PATCH /products/:id/stock` is rejected with `422 STOCK_NOT_TRACKED`. `stockStatus` is always `safe`.
+- New product errors: `409 SKU_TAKEN` and `409 BARCODE_TAKEN`.
+- New e2e tests (`test/e2e/catalog-profit.e2e.test.ts`, `helpers.ts`) and a second test account (`E2E_EMAIL_2`, `E2E_PHONE_2`) to prove isolation between stores.
 
-- **Bidang usaha dan jenis usaha per toko.** Tiga bidang usaha: **Retail / Umum** (sama seperti sebelumnya), **Kuliner** (Makanan, Minuman, Makanan & Minuman), dan **Jasa & Layanan** (Servis AC, Laundry, Bengkel Motor/Mobil, Pijat & Refleksi, Percetakan & Fotokopi, Jasa Umum). `Store.sector` (default `general` untuk semua toko lama) dan `Store.subtype` (teks, divalidasi terhadap konfigurasi sehingga menambah jenis baru tidak perlu migration).
-  - Satu konfigurasi (`src/modules/sectors/sector.config.ts`) menentukan istilah yang dipakai app (Produk / Menu / Layanan, termasuk placeholder), satuan, kategori awal, isian tambahan, preset varian, dan **contoh item awal** (mis. "Cuci Kiloan Express", "Tambal Ban Tubeless", "Springbed / Kasur") yang mengisi form kecuali harga. Disajikan lewat **`GET /sectors`** (publik, di-cache 1 jam). Lihat `docs/08-sectors.md`.
-  - `POST /auth/register` menerima `sector` dan `subtype` (opsional; default `general` / `default`) dan membuat kategori awal sesuai jenis usaha; `422 INVALID_SUBTYPE` jika jenis tidak cocok. Login/`/auth/me` mengembalikan `store.sector` dan `store.subtype`; owner bisa mengubahnya lewat `PATCH /store`.
-- **Istilah keranjang, usaha, dan catatan per jenis usaha.** `vocabulary` kini juga berisi `cartNoun` (Keranjang / Pesanan / Daftar Layanan), `businessNoun` (Toko / Usaha), dan `notePlaceholder` (contoh isi catatan per baris, mis. "tanpa pewangi, ada noda di lengan kemeja" untuk Laundry). Jasa & Layanan tidak lagi memakai kata "toko", "keranjang", atau contoh makanan. `GET /sectors` versi 4.
-- **Istilah dan contoh varian per jenis usaha.** Judul bagian, teks contoh, dan placeholder editor varian kini bagian dari `vocabulary` tiap jenis (`variantSection`, `variantHint`, `variantGroupPlaceholder`, `variantOptionPlaceholder`), dan setiap jenis punya preset *Tambah cepat* sendiri (mis. Laundry: Pewangi; Servis AC: Kapasitas AC; Bengkel: Jenis Kendaraan; Percetakan: Finishing, Jenis Kertas). Jasa & Layanan tidak lagi menampilkan contoh makanan seperti "level pedas, topping". `GET /sectors` versi 3.
-- **`Product.attributes`** (JSON): isian khusus jenis usaha (mis. laundry: kecepatan, estimasi selesai; bengkel: jasa atau sparepart, merek, nomor part), divalidasi ketat di server. Isian tidak dikenal ditolak; isian yang tersembunyi (`showWhen`) dibuang. Error: `422 INVALID_ATTRIBUTES` dengan pesan per isian. Bengkel, servis AC, dan percetakan membedakan **jasa** (tanpa stok) dan **sparepart/barang** (stok dilacak).
-- **Jumlah desimal (kg, m², jam).** `Product.allowDecimalQty` dan `TransactionItem.quantity` kini `Decimal(12,3)`: laundry bisa menjual 2,5 kg. Hanya untuk item tanpa pelacakan stok (`422 DECIMAL_NEEDS_UNTRACKED_STOCK`); pecahan untuk item yang tidak mengizinkannya ditolak (`422 INVALID_QUANTITY`); maksimal 3 angka di belakang koma. Baris dengan jumlah pecahan dibulatkan ke Rupiah utuh (2,333 kg × 7.000 = 16.331); baris bulat dihitung persis seperti sebelumnya.
-- **Ubah varian produk lewat `PATCH /products/:id`** (`variantGroups` berisi daftar lengkap; id yang tidak berubah dipertahankan agar keranjang/struk tetap valid; id milik produk lain ditolak dengan `422 INVALID_VARIANT_ID`).
-- `AppError(status, code, message, details?)` di `src/utils/app-error.ts`, ditangani oleh `errorHandler`.
-- Test: validasi dan integritas konfigurasi (unit; setiap contoh item divalidasi terhadap jenisnya sendiri), jumlah desimal (unit + e2e), e2e jenis usaha/atribut/varian (`test/e2e/sectors.e2e.test.ts`), akun test ketiga (`E2E_EMAIL_3`, `E2E_PHONE_3`), dan cache token e2e agar tidak terkena rate limit login.
+- **Business sector and business type per store.** Three business sectors: **Retail / General** (`Retail / Umum`, same as before), **Culinary** (`Kuliner`: Food, Drinks, Food & Drinks), and **Services** (`Jasa & Layanan`: AC Service, Laundry, Motorcycle/Car Workshop, Massage & Reflexology, Printing & Photocopying, General Services). `Store.sector` (default `general` for all existing stores) and `Store.subtype` (text, validated against the configuration so adding a new type needs no migration).
+  - A single configuration (`src/modules/sectors/sector.config.ts`) defines the terminology used by the app (Product / Menu / Service, including placeholders), units, starter categories, extra fields, variant presets, and **starter sample items** (e.g. "Cuci Kiloan Express", "Tambal Ban Tubeless", "Springbed / Kasur") that pre-fill the form except for the price. Served through **`GET /sectors`** (public, cached for 1 hour). See `docs/08-sectors.md`.
+  - `POST /auth/register` accepts `sector` and `subtype` (optional; default `general` / `default`) and creates starter categories matching the business type; `422 INVALID_SUBTYPE` if the type does not match. Login/`/auth/me` return `store.sector` and `store.subtype`; the owner can change them via `PATCH /store`.
+- **Cart, business, and note terminology per business type.** `vocabulary` now also contains `cartNoun` (Cart / Order / Service List), `businessNoun` (Store / Business), and `notePlaceholder` (a sample per-line note, e.g. "tanpa pewangi, ada noda di lengan kemeja" (no fragrance, stain on the shirt sleeve) for Laundry). Services no longer use the words "store", "cart", or food examples. `GET /sectors` version 4.
+- **Variant terminology and examples per business type.** The section title, sample text, and variant editor placeholders are now part of each type's `vocabulary` (`variantSection`, `variantHint`, `variantGroupPlaceholder`, `variantOptionPlaceholder`), and every type has its own *Quick add* preset (e.g. Laundry: Fragrance; AC Service: AC Capacity; Workshop: Vehicle Type; Printing: Finishing, Paper Type). Services no longer show food examples such as "spice level, toppings". `GET /sectors` version 3.
+- **`Product.attributes`** (JSON): business-type-specific fields (e.g. laundry: speed, estimated completion; workshop: service or spare part, brand, part number), strictly validated on the server. Unknown fields are rejected; hidden fields (`showWhen`) are dropped. Error: `422 INVALID_ATTRIBUTES` with a per-field message. Workshop, AC service, and printing distinguish **services** (no stock) from **spare parts/goods** (stock tracked).
+- **Decimal quantities (kg, m², hours).** `Product.allowDecimalQty` and `TransactionItem.quantity` are now `Decimal(12,3)`: a laundry can sell 2.5 kg. Only for items without stock tracking (`422 DECIMAL_NEEDS_UNTRACKED_STOCK`); fractions for items that do not allow them are rejected (`422 INVALID_QUANTITY`); at most 3 digits after the decimal point. Rows with a fractional quantity are rounded to whole Rupiah (2.333 kg × 7,000 = 16,331); whole-number rows are calculated exactly as before.
+- **Edit product variants via `PATCH /products/:id`** (`variantGroups` holds the complete list; unchanged ids are preserved so carts/receipts remain valid; ids belonging to another product are rejected with `422 INVALID_VARIANT_ID`).
+- `AppError(status, code, message, details?)` in `src/utils/app-error.ts`, handled by `errorHandler`.
+- Tests: configuration validation and integrity (unit; every sample item is validated against its own type), decimal quantities (unit + e2e), e2e for business type/attributes/variants (`test/e2e/sectors.e2e.test.ts`), a third test account (`E2E_EMAIL_3`, `E2E_PHONE_3`), and an e2e token cache so tests do not hit the login rate limit.
 
 ### Changed
 
-- **SKU dan barcode kini unik per toko**, bukan global (toko berbeda boleh memakai SKU/barcode yang sama).
-- Void transaksi hanya mengembalikan stok untuk produk yang `trackStock = true`.
+- **SKU and barcode are now unique per store**, not global (different stores may use the same SKU/barcode).
+- Voiding a transaction only restores stock for products with `trackStock = true`.
 - Migration: `20261018130000_add_cost_snapshot_track_stock_per_store_sku`
-  - **Backfill:** baris penjualan lama diisi dengan harga beli produk **saat ini**. Ini hanya perkiraan untuk riwayat (harga beli saat itu tidak pernah disimpan); semua penjualan baru memakai HPP yang sebenarnya.
-  - Kompatibilitas app: semua versi app tetap jalan. Produk lama otomatis `trackStock = true`. Toggle "Lacak stok" dan kartu laba ada di app versi terbaru.
+  - **Backfill:** old sales rows are filled with the product's **current** purchase price. This is only an estimate for history (the purchase price at the time was never stored); all new sales use the real COGS.
+  - App compatibility: all app versions keep working. Existing products automatically get `trackStock = true`. The "Lacak stok" (Track stock) toggle and the profit card are in the latest app version.
 
-- **`GET /products` kini mengembalikan `variantGroups` beserta opsinya.** Sebelumnya varian tidak ikut terkirim sehingga pemilih varian di kasir tidak pernah muncul.
-- `trackStock` pada `POST /products` kini opsional: jika tidak dikirim, dipakai default sector (jasa = tidak melacak stok; Kecantikan "Layanan" = tidak melacak stok).
-- Checkout: `selectedVariants` cukup berisi `optionId`; field lain diterima tapi diabaikan (server selalu menghitung harga varian dari database).
-- `PATCH /products/:id` dan `POST /products` menerima `allowDecimalQty`; `GET /reports/top-products` dan `GET /reports/profit` mengembalikan jumlah desimal (angka, bukan string).
-- Migration: `20261019100000_add_store_sector_product_attributes` dan `20261020100000_three_sectors_subtype_decimal_quantity`
-  - Migration kedua menyusutkan enum `BusinessSector` menjadi tiga nilai; toko yang memakai jenis yang dihapus (`fashion`, `beauty`, `craft`, belum pernah dirilis) otomatis menjadi `general`, produknya tidak berubah. Kolom `TransactionItem.quantity` berubah dari `Int` ke `Decimal(12,3)` (nilai lama tetap utuh).
-  - Kompatibilitas app: semua versi app tetap jalan. Toko lama otomatis `general` / `default` (tanpa isian tambahan); app lama yang tidak mengirim `sector`/`subtype`/`attributes` tetap bisa mendaftar dan membuat produk. Pilihan jenis usaha, istilah dinamis, form produk dinamis, contoh item, editor varian, dan input jumlah desimal ada di app versi terbaru.
+- **`GET /products` now returns `variantGroups` together with their options.** Previously variants were not sent, so the variant picker at the cashier never appeared.
+- `trackStock` on `POST /products` is now optional: if not sent, the sector default is used (services = no stock tracking; Beauty "Layanan" (Services) = no stock tracking).
+- Checkout: `selectedVariants` only needs to contain `optionId`; other fields are accepted but ignored (the server always computes variant prices from the database).
+- `PATCH /products/:id` and `POST /products` accept `allowDecimalQty`; `GET /reports/top-products` and `GET /reports/profit` return decimal quantities (numbers, not strings).
+- Migrations: `20261019100000_add_store_sector_product_attributes` and `20261020100000_three_sectors_subtype_decimal_quantity`
+  - The second migration shrinks the `BusinessSector` enum to three values; stores using a removed type (`fashion`, `beauty`, `craft`, never released) automatically become `general`, their products unchanged. The `TransactionItem.quantity` column changes from `Int` to `Decimal(12,3)` (existing values stay intact).
+  - App compatibility: all app versions keep working. Existing stores automatically become `general` / `default` (no extra fields); old apps that do not send `sector`/`subtype`/`attributes` can still register and create products. The business type picker, dynamic terminology, dynamic product form, sample items, variant editor, and decimal quantity input are in the latest app version.
 
 ### Fixed
 
-- **`categoryId` pada produk kini harus milik toko yang sama** (`422 CATEGORY_NOT_FOUND`). Sebelumnya produk bisa ditautkan ke kategori toko lain.
+- **A product's `categoryId` must now belong to the same store** (`422 CATEGORY_NOT_FOUND`). Previously a product could be linked to another store's category.
 
 ## [1.3.0] — 2026-10-18
 
-> **Catatan upgrade:** rilis ini membawa 2 migration database. Jalankan `npx prisma migrate deploy` (setelah backup) **sebelum** menjalankan server versi baru. Deploy seluruh repo, bukan hanya `dist/` — server membaca folder `docs/` saat runtime.
-> **Kompatibilitas app:** semua versi app yang sudah terpasang tetap bisa checkout selama harga di app sinkron dengan server. Dukungan penuh (`Idempotency-Key`, penanganan `PRICE_CHANGED`, guard tap ganda) ada di app versi terbaru.
+> **Upgrade note:** this release brings 2 database migrations. Run `npx prisma migrate deploy` (after a backup) **before** starting the new server version. Deploy the whole repo, not just `dist/` — the server reads the `docs/` folder at runtime.
+> **App compatibility:** every app version already installed can still check out as long as the prices in the app are in sync with the server. Full support (`Idempotency-Key`, `PRICE_CHANGED` handling, double-tap guard) is in the latest app version.
 
 ### Added
 
-- **Situs dokumentasi developer di `/docs`** — menu per halaman, daftar isi, dan kode berwarna. Aktif di development; di production mati kecuali `DOCS_ENABLED=true` dan wajib `DOCS_PASSWORD` (HTTP Basic auth). Env baru: `DOCS_ENABLED`, `DOCS_USER`, `DOCS_PASSWORD`.
-- `POST /transactions` menerima header `Idempotency-Key`; request ulang dengan key yang sama mengembalikan transaksi awal (status `200` + header `Idempotent-Replayed: true`), tidak menagih dua kali.
+- **Developer documentation site at `/docs`** — per-page menu, table of contents, and syntax-highlighted code. Active in development; off in production unless `DOCS_ENABLED=true` and `DOCS_PASSWORD` is required (HTTP Basic auth). New env vars: `DOCS_ENABLED`, `DOCS_USER`, `DOCS_PASSWORD`.
+- `POST /transactions` accepts an `Idempotency-Key` header; a repeated request with the same key returns the original transaction (status `200` + header `Idempotent-Replayed: true`), without charging twice.
   - Migration: `20261018120000_add_transaction_idempotency_key`
-  - Kompatibilitas app: jalan dengan semua versi app; app terbaru mengirim key.
-- Panduan developer (`docs/`), ESLint, Prettier, Husky (pre-commit, commit-msg, pre-push), commitlint, dan test (Vitest: unit + e2e).
+  - App compatibility: works with all app versions; the latest app sends the key.
+- Developer guide (`docs/`), ESLint, Prettier, Husky (pre-commit, commit-msg, pre-push), commitlint, and tests (Vitest: unit + e2e).
 
 ### Changed
 
-- Checkout menghitung ulang semua harga di server. Harga dari app yang sudah usang ditolak dengan `409 PRICE_CHANGED` (berisi `details` per baris). Error checkout kini berbentuk `{ code, message, details? }`.
-- Stok dikurangi atomik (`stock >= qty`), produk yang sama boleh muncul di beberapa baris keranjang, `shiftId`/`branchId` divalidasi milik store dan user yang sama.
-- Pembayaran tunai dicatat bersih dari kembalian, sehingga total shift dan laporan metode bayar tidak membengkak.
-- `invoiceNumber` kini unik per store, bukan global.
+- Checkout recalculates all prices on the server. Prices from an outdated app are rejected with `409 PRICE_CHANGED` (containing per-row `details`). Checkout errors now have the shape `{ code, message, details? }`.
+- Stock is decremented atomically (`stock >= qty`), the same product may appear in multiple cart rows, and `shiftId`/`branchId` are validated as belonging to the same store and user.
+- Cash payments are recorded net of change, so shift totals and the payment method report are not inflated.
+- `invoiceNumber` is now unique per store, not global.
   - Migration: `20261018121000_scope_invoice_number_per_store`
-- Total kembalian (`changeAmount`) dan `cashPaid` pada transaksi kini dihitung server dari entri pembayaran tunai.
+- The change total (`changeAmount`) and `cashPaid` on transactions are now computed by the server from the cash payment entries.
 
 ### Deprecated
 
-- Field `cashPaid` pada body `POST /transactions`: kini diturunkan dari pembayaran bertipe `cash`. Masih diterima agar app lama tidak rusak; direncanakan dihapus di 2.0.0.
+- The `cashPaid` field in the `POST /transactions` body: now derived from payments of type `cash`. Still accepted so old apps do not break; planned for removal in 2.0.0.
 
 ### Fixed
 
-- Login dua kali dalam detik yang sama gagal `409` karena refresh token identik; setiap token kini unik (`jti`).
+- Logging in twice within the same second failed with `409` because of identical refresh tokens; every token is now unique (`jti`).
 
 ## [1.2.0] — 2026-10-16
 
 ### Added
 
-#### Shift Opsional per Store (`shiftEnabled` flag)
-- **File:** `prisma/schema.prisma` — `Transaction.shiftId` diubah dari `String` → `String?` (nullable)
-- **File:** `src/modules/transactions/transactions.schema.ts` — `shiftId` jadi `.uuid().nullable().optional()`
-- **File:** `src/modules/transactions/transactions.controller.ts` — logika kondisional:
-  - `store.shiftEnabled = true` → `shiftId` wajib ada + shift harus status `open`, `branchId` diambil dari shift
-  - `store.shiftEnabled = false` → skip validasi shift, `branchId` dari `body.branchId ?? user.branchId`
-  - Update shift totals (cashSalesTotal, digitalSalesTotal, transactionCount) hanya dilakukan jika `shiftId` non-null
-  - Void transaksi: reverse shift totals hanya jika `shiftId` non-null pada record
+#### Optional Shift per Store (`shiftEnabled` flag)
+- **File:** `prisma/schema.prisma` — `Transaction.shiftId` changed from `String` → `String?` (nullable)
+- **File:** `src/modules/transactions/transactions.schema.ts` — `shiftId` becomes `.uuid().nullable().optional()`
+- **File:** `src/modules/transactions/transactions.controller.ts` — conditional logic:
+  - `store.shiftEnabled = true` → `shiftId` is required + the shift must have status `open`, `branchId` is taken from the shift
+  - `store.shiftEnabled = false` → skip shift validation, `branchId` from `body.branchId ?? user.branchId`
+  - Updating shift totals (cashSalesTotal, digitalSalesTotal, transactionCount) only happens if `shiftId` is non-null
+  - Voiding a transaction: reverse shift totals only if `shiftId` is non-null on the record
 - **Migration:** `20261004093150_make_transaction_shiftid_nullable`
 
-#### Login & Me — Informasi Shift dalam Response
+#### Login & Me — Shift Information in the Response
 - **File:** `src/modules/auth/auth.controller.ts`
-- `POST /auth/login` dan `GET /auth/me` sekarang return:
+- `POST /auth/login` and `GET /auth/me` now return:
   ```json
   {
     "user": { "id", "name", "role", "branchId", "avatarUrl", "storeId" },
@@ -187,90 +187,90 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     "refreshToken": "..."
   }
   ```
-- `requireShift = (role !== 'owner') && store.shiftEnabled` — owner tidak pernah butuh shift
-- `activeShift` hanya di-query jika `requireShift = true`
-- FE tidak perlu API call tambahan setelah login untuk menentukan apakah perlu buka shift
+- `requireShift = (role !== 'owner') && store.shiftEnabled` — the owner never needs a shift
+- `activeShift` is only queried if `requireShift = true`
+- The FE needs no additional API call after login to determine whether a shift must be opened
 
-#### Kategori Default Otomatis saat Register
+#### Automatic Default Categories on Register
 - **File:** `src/modules/auth/auth.controller.ts`
-- `POST /auth/register` sekarang membuat 5 kategori default dalam satu `prisma.$transaction`:
+- `POST /auth/register` now creates 5 default categories within a single `prisma.$transaction`:
   Makanan, Minuman, Snack, Rokok, Lainnya
-- Sebelumnya: tidak ada kategori saat store baru dibuat
+- Previously: no categories were created when a new store was created
 
 #### StoreDiscount CRUD (`/api/v1/discounts`)
 - **File:** `src/modules/discounts/` (controller, schema, routes)
-- Model baru `StoreDiscount` di Prisma: `id, storeId, label, type(percent|amount), value, isActive, sortOrder`
-- Endpoint: `GET /` (semua role), `POST /`, `PATCH /:id`, `DELETE /:id` (owner only)
-- Cascade delete dari Store
+- New `StoreDiscount` model in Prisma: `id, storeId, label, type(percent|amount), value, isActive, sortOrder`
+- Endpoints: `GET /` (all roles), `POST /`, `PATCH /:id`, `DELETE /:id` (owner only)
+- Cascade delete from Store
 
-#### Field Diskon di Store & Produk
+#### Discount Fields on Store & Product
 - **File:** `prisma/schema.prisma`
-- `Store` — tambah: `globalDiscountEnabled`, `globalDiscountType`, `globalDiscountValue`, `cashierCanDiscount`
-- `Product` — tambah: `discountEnabled`, `discountType(percent|amount)`, `discountValue`
-- **File:** `src/modules/store/store.schema.ts` — field baru masuk ke `updateStoreSchema`
-- **File:** `src/modules/products/products.schema.ts` — field baru masuk ke `createProductSchema`
+- `Store` — added: `globalDiscountEnabled`, `globalDiscountType`, `globalDiscountValue`, `cashierCanDiscount`
+- `Product` — added: `discountEnabled`, `discountType(percent|amount)`, `discountValue`
+- **File:** `src/modules/store/store.schema.ts` — new fields go into `updateStoreSchema`
+- **File:** `src/modules/products/products.schema.ts` — new fields go into `createProductSchema`
 
-#### Item-level Discount di Transaksi
+#### Item-level Discount in Transactions
 - **File:** `src/modules/transactions/transactions.schema.ts`
-- Tambah `itemDiscountSchema` (`type`, `value`, `label`) — nullable/optional per item transaksi
-- `transactionItemSchema` sekarang punya field `itemDiscount` dan `subtotal` (opsional dari FE)
+- Added `itemDiscountSchema` (`type`, `value`, `label`) — nullable/optional per transaction item
+- `transactionItemSchema` now has `itemDiscount` and `subtotal` fields (optional from the FE)
 
 ---
 
 ### Fixed
 
-#### Zod Coercion untuk Decimal Fields (Fix update 422)
-- **Files:** semua `*.schema.ts`
-- Semua field numerik yang mapped ke Prisma `Decimal` diubah dari `z.number()` → `z.coerce.number()`
-- **Root cause:** Prisma serialisasi `Decimal` sebagai `string` di JSON response (misal `"20000.00"`). Saat FE mengirim data ini kembali saat update, `z.number()` menolak string → 422 Unprocessable Entity
-- File yang diubah: `products.schema.ts`, `shifts.schema.ts`, `transactions.schema.ts`, `pending-bills.schema.ts`, `store.schema.ts`, `categories.schema.ts`
+#### Zod Coercion for Decimal Fields (Fix for update 422)
+- **Files:** all `*.schema.ts`
+- All numeric fields mapped to Prisma `Decimal` changed from `z.number()` → `z.coerce.number()`
+- **Root cause:** Prisma serializes `Decimal` as a `string` in the JSON response (e.g. `"20000.00"`). When the FE sends this data back on update, `z.number()` rejects the string → 422 Unprocessable Entity
+- Files changed: `products.schema.ts`, `shifts.schema.ts`, `transactions.schema.ts`, `pending-bills.schema.ts`, `store.schema.ts`, `categories.schema.ts`
 
-#### `updateProduct` Response Tidak Lengkap
+#### `updateProduct` Response Incomplete
 - **File:** `src/modules/products/products.controller.ts`
-- `PATCH /products/:id` sekarang return `include: { category }` + `stockStatus` field
-- Sebelumnya: response hanya raw product tanpa category object
+- `PATCH /products/:id` now returns `include: { category }` + the `stockStatus` field
+- Previously: the response was just the raw product without the category object
 
-#### storeId Tidak Konsisten di Update Operations
+#### storeId Inconsistent in Update Operations
 - **Files:** `products.controller.ts`, `branches.controller.ts`, `users.controller.ts`
-- `adjustStock`, `branches.toggleStatus`, `users.toggleStatus`, `users.changePin` — update query sekarang pakai `where: { id, storeId }` bukan hanya `where: { id }`
-- Sebelumnya: storeId hanya dicek di `findUnique` sebelumnya, update sendiri tidak scope ke storeId
+- `adjustStock`, `branches.toggleStatus`, `users.toggleStatus`, `users.changePin` — the update query now uses `where: { id, storeId }` instead of just `where: { id }`
+- Previously: storeId was only checked in the preceding `findUnique`; the update itself was not scoped to storeId
 
-#### `GET /shifts/current` Return 404 saat Tidak Ada Shift
+#### `GET /shifts/current` Returned 404 When There Was No Shift
 - **File:** `src/modules/shifts/shifts.controller.ts`
-- Sekarang return `null` dengan status 200 jika tidak ada shift aktif
-- **Root cause:** 404 menyebabkan FE error handler salah baca sebagai "resource not found" padahal "tidak ada shift" adalah state yang valid
+- Now returns `null` with status 200 if there is no active shift
+- **Root cause:** the 404 made the FE error handler misread it as "resource not found" when "no shift" is a valid state
 
 #### Category Delete — Null Constraint Violation
 - **File:** `src/modules/categories/categories.controller.ts`
-- **Root cause:** `categoryId` di `Product` adalah `String` (non-nullable). Code sebelumnya mencoba `data: { categoryId: fallback?.id ?? null }` → TypeScript error + runtime error Prisma
-- Fix: jika ada produk di kategori yang dihapus:
-  - Ada kategori "Lainnya" → pindah produk ke "Lainnya", hapus kategori
-  - Tidak ada "Lainnya" → return 400 dengan pesan informatif, block delete
+- **Root cause:** `categoryId` on `Product` is a `String` (non-nullable). The previous code tried `data: { categoryId: fallback?.id ?? null }` → TypeScript error + Prisma runtime error
+- Fix: if there are products in the category being deleted:
+  - A "Lainnya" (Other) category exists → move the products to "Lainnya", delete the category
+  - No "Lainnya" → return 400 with an informative message, block the delete
 
-#### `logoUrl` Tidak Bisa Diupdate via PATCH /store
+#### `logoUrl` Could Not Be Updated via PATCH /store
 - **File:** `src/modules/store/store.schema.ts`
-- Tambah `logoUrl: z.string().nullable().optional()` ke `updateStoreSchema`
-- Sebelumnya: Zod strip field ini → logoUrl tidak tersimpan
+- Added `logoUrl: z.string().nullable().optional()` to `updateStoreSchema`
+- Previously: Zod stripped this field → logoUrl was not saved
 
 ---
 
 ### Changed
 
-#### Seed — Bersih dari Data Demo
+#### Seed — Cleaned of Demo Data
 - **File:** `prisma/seed.ts`
-- **Dihapus:** seed Branch, User (budi/siti/ahmad), semua Product (10 item)
-- **Dipertahankan:** store-default + 5 kategori
-- **Diubah:** category ID dari `'cat-makanan'` style → UUID proper (hardcoded stabil)
+- **Removed:** seed Branch, User (budi/siti/ahmad), all Products (10 items)
+- **Kept:** store-default + 5 categories
+- **Changed:** category IDs from the `'cat-makanan'` style → proper UUIDs (hardcoded, stable)
   ```
   Makanan:  a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
   Minuman:  a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
   ...
   ```
-- **Impact:** Developer harus register via `POST /auth/register` untuk mendapat akun — tidak ada lagi akun bawaan
+- **Impact:** Developers must register via `POST /auth/register` to get an account — there are no built-in accounts anymore
 
-#### `GET /auth/me` — Struktur Response Berubah
-- Sebelumnya: return flat user object
-- Sekarang: return `{ user, store, requireShift, activeShift }` (sama dengan login response)
+#### `GET /auth/me` — Response Structure Changed
+- Previously: returned a flat user object
+- Now: returns `{ user, store, requireShift, activeShift }` (same as the login response)
 
 ---
 
@@ -280,38 +280,38 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 #### transactions.controller.ts — Invoice Number Unique Constraint Error (P2002)
 - **File:** `src/modules/transactions/transactions.controller.ts`
-- Tambah import `{ Prisma }` dari `@prisma/client`.
-- Ganti single `prisma.$transaction()` call dengan **retry loop** (max 3 attempts) yang menangkap `PrismaClientKnownRequestError` dengan `code === 'P2002'`:
-  - Jika P2002 (unique constraint pada `invoiceNumber`) → generate invoice number baru dan retry.
-  - Jika error lain → re-throw immediately, tidak di-retry.
-  - Setelah 3 kali gagal → throw error terakhir ke `next(err)` → `errorHandler` return 409.
-- **Root cause:** `generateInvoiceNumber` menggunakan `COUNT + 1` yang tidak atomic. Dua request yang tiba hampir bersamaan (double-tap user) membaca `count` yang sama → generate `invoiceNumber` yang sama → request kedua kena P2002.
+- Added import of `{ Prisma }` from `@prisma/client`.
+- Replaced the single `prisma.$transaction()` call with a **retry loop** (max 3 attempts) that catches `PrismaClientKnownRequestError` with `code === 'P2002'`:
+  - If P2002 (unique constraint on `invoiceNumber`) → generate a new invoice number and retry.
+  - If any other error → re-throw immediately, no retry.
+  - After 3 failures → throw the last error to `next(err)` → `errorHandler` returns 409.
+- **Root cause:** `generateInvoiceNumber` used `COUNT + 1`, which is not atomic. Two requests arriving almost simultaneously (user double-tap) read the same `count` → generate the same `invoiceNumber` → the second request hits P2002.
 
-#### utils/invoice.ts — Invoice Number Collision Lintas Branch / Store
+#### utils/invoice.ts — Invoice Number Collision Across Branches / Stores
 - **File:** `src/utils/invoice.ts`
-- Ubah signature: `generateInvoiceNumber(branchId)` → `generateInvoiceNumber(storeId)`.
-- Ganti strategi dari **COUNT-based** ke **MAX-based**:
+- Changed signature: `generateInvoiceNumber(branchId)` → `generateInvoiceNumber(storeId)`.
+- Changed the strategy from **COUNT-based** to **MAX-based**:
   ```
-  SEBELUM: count(branchId, today) + 1
-  SESUDAH: parse sequence dari invoiceNumber terakhir hari ini (storeId, startsWith prefix) + 1
+  BEFORE: count(branchId, today) + 1
+  AFTER: parse the sequence from the last invoiceNumber today (storeId, startsWith prefix) + 1
   ```
-- Filter menggunakan `invoiceNumber: { startsWith: prefix }` (bukan `createdAt` date range) untuk menghindari timezone mismatch antara server UTC dan local time.
-- **Root cause 1 (lintas branch):** `invoiceNumber @unique` secara global di schema Prisma, tapi count di-filter per `branchId`. Dua branch berbeda yang sama-sama membuat transaksi pertama hari ini akan generate `INV-YYYYMMDD-0001` → collision.
-- **Root cause 2 (retry tidak efektif):** COUNT-based approach selalu menghasilkan invoice number yang sama pada setiap retry karena failed inserts di-rollback → count tidak berubah → nilai yang di-generate identik di setiap attempt → semua 3 retry gagal.
-- **Solusi:** MAX-based selalu membaca `invoiceNumber` tertinggi yang sudah committed → nilai yang di-generate selalu beda dari record yang sudah ada → retry efektif untuk concurrent race condition.
+- Filters using `invoiceNumber: { startsWith: prefix }` (not a `createdAt` date range) to avoid timezone mismatch between server UTC and local time.
+- **Root cause 1 (cross-branch):** `invoiceNumber @unique` is global in the Prisma schema, but the count is filtered per `branchId`. Two different branches that both create their first transaction today would generate `INV-YYYYMMDD-0001` → collision.
+- **Root cause 2 (ineffective retry):** the COUNT-based approach always produced the same invoice number on every retry because failed inserts are rolled back → the count does not change → the generated value is identical on every attempt → all 3 retries fail.
+- **Solution:** MAX-based always reads the highest committed `invoiceNumber` → the generated value always differs from existing records → the retry is effective against concurrent race conditions.
 
 ---
 
 ## [1.0.0] — Prior to 2026-10-05
 
 ### Added
-- REST API dengan Express.js + TypeScript + Prisma ORM (PostgreSQL).
-- Modul: `auth`, `branches`, `categories`, `pending-bills`, `products`, `reports`, `shifts`, `store`, `transactions`, `users`.
+- REST API with Express.js + TypeScript + Prisma ORM (PostgreSQL).
+- Modules: `auth`, `branches`, `categories`, `pending-bills`, `products`, `reports`, `shifts`, `store`, `transactions`, `users`.
 - JWT authentication middleware (`authenticate.ts`).
 - Role-based access control (`requireRole.ts`).
 - Zod schema validation (`validate.ts`).
-- Global error handler (`errorHandler.ts`) dengan handling Prisma error codes P2002, P2025.
+- Global error handler (`errorHandler.ts`) with handling of Prisma error codes P2002, P2025.
 - Invoice number generator (`utils/invoice.ts`).
-- Multi-tenant: semua resource di-scope per `storeId` dari JWT payload.
-- Shift management: validasi shift aktif sebelum transaksi, update totals saat transaksi/void.
-- Transaction void: verifikasi PIN owner (bcrypt), restore stock, reverse shift totals.
+- Multi-tenant: all resources are scoped per `storeId` from the JWT payload.
+- Shift management: active shift validation before transactions, totals updated on transaction/void.
+- Transaction void: owner PIN verification (bcrypt), restore stock, reverse shift totals.

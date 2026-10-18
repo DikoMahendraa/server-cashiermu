@@ -24,7 +24,7 @@ Read them in order the first time; after that, use them as a reference.
 | 17  | [Off-site backup (R2)](17-r2-offsite-backup.md)      | You are setting up or restoring from the off-server backup |
 | 18  | [Production monitoring](18-grafana-cloud.md)         | You are setting up uptime checks, Grafana Cloud or alerts |
 
-Other files in the repo root: [`README.md`](../README.md) (long from-zero setup in Indonesian, including
+Other files in the repo root: [`README.md`](../README.md) (long from-zero setup guide, including
 installing PostgreSQL), [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md), [`CHANGELOG.md`](../CHANGELOG.md),
 [`notes.md`](../notes.md) (lessons learned).
 

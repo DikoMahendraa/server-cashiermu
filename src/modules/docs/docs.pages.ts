@@ -67,7 +67,7 @@ export const DOC_PAGES: readonly DocPage[] = [
   },
   { slug: 'grafana-cloud', file: 'docs/18-grafana-cloud.md', group: 'guide', navTitle: '18. Production monitoring' },
   { slug: 'changelog', file: 'CHANGELOG.md', group: 'reference', navTitle: 'Changelog' },
-  { slug: 'setup-id', file: 'README.md', group: 'reference', navTitle: 'Setup from scratch (Indonesian)' },
+  { slug: 'setup-id', file: 'README.md', group: 'reference', navTitle: 'Setup from scratch' },
   { slug: 'deployment', file: 'DEPLOYMENT_GUIDE.md', group: 'reference', navTitle: 'Deployment guide' },
   { slug: 'notes', file: 'notes.md', group: 'reference', navTitle: 'Lessons learned' },
 ];
