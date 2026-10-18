@@ -6,29 +6,17 @@ import prisma from '../../config/database';
 import { env } from '../../config/env';
 import { RegisterDto, CheckCredentialDto, LoginDto, RefreshDto } from './auth.schema';
 import { getSubtypeConfig, isValidSubtype } from '../sectors/sector.config';
+import { loginTotal } from '../../observability/metrics';
+import { LoginGuard } from './login-guard';
 
-const loginAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
+const lockoutMs = env.LOGIN_LOCKOUT_MINUTES * 60 * 1000;
+// Two independent locks: per client address (stops one device guessing many accounts) and per account (stops guessing
+// one PIN from many addresses). Either one locked means "try again later".
+const ipGuard = new LoginGuard({ maxAttempts: env.MAX_LOGIN_ATTEMPTS, lockoutMs });
+const accountGuard = new LoginGuard({ maxAttempts: env.MAX_LOGIN_ATTEMPTS * 2, lockoutMs });
 
-function checkLock(key: string): boolean {
-  const attempt = loginAttempts.get(key);
-  if (!attempt) return false;
-  if (attempt.lockedUntil && attempt.lockedUntil > new Date()) return true;
-  return false;
-}
-
-function recordFailure(key: string): void {
-  const attempt = loginAttempts.get(key) || { count: 0 };
-  attempt.count += 1;
-  if (attempt.count >= env.MAX_LOGIN_ATTEMPTS) {
-    attempt.lockedUntil = new Date(Date.now() + env.LOGIN_LOCKOUT_MINUTES * 60 * 1000);
-    attempt.count = 0;
-  }
-  loginAttempts.set(key, attempt);
-}
-
-function clearAttempts(key: string): void {
-  loginAttempts.delete(key);
-}
+// bcrypt hash of a random string; compared against when the account does not exist (see login)
+const DUMMY_PIN_HASH = bcrypt.hashSync(randomUUID(), 10);
 
 function signAccessToken(payload: object): string {
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_EXPIRES_IN } as jwt.SignOptions);
@@ -105,7 +93,7 @@ export const checkCredential = async (req: Request, res: Response, next: NextFun
         OR: [{ email: credential }, { phone: credential }],
         isActive: true,
       },
-      select: { id: true, name: true, role: true, branchId: true, avatarUrl: true, storeId: true },
+      select: { id: true, name: true, role: true, avatarUrl: true },
     });
 
     if (!user) {
@@ -123,8 +111,10 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
   try {
     const { credential, pin } = req.body as LoginDto;
     const ip = req.ip || 'unknown';
+    const account = credential.trim().toLowerCase();
 
-    if (checkLock(ip)) {
+    if (ipGuard.lockedFor(ip) > 0 || accountGuard.lockedFor(account) > 0) {
+      loginTotal.inc({ result: 'locked' });
       res.status(429).json({ message: `Too many failed attempts. Try again in ${env.LOGIN_LOCKOUT_MINUTES} minutes.` });
       return;
     }
@@ -136,20 +126,19 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       },
     });
 
-    if (!user) {
-      recordFailure(ip);
+    // Same answer and same work whether the account exists or not, so timing does not reveal it either
+    const pinMatch = await bcrypt.compare(pin, user?.pinHash ?? DUMMY_PIN_HASH);
+    if (!user || !pinMatch) {
+      ipGuard.recordFailure(ip);
+      accountGuard.recordFailure(account);
+      loginTotal.inc({ result: 'invalid_credentials' });
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
 
-    const pinMatch = await bcrypt.compare(pin, user.pinHash);
-    if (!pinMatch) {
-      recordFailure(ip);
-      res.status(401).json({ message: 'Invalid credentials' });
-      return;
-    }
-
-    clearAttempts(ip);
+    ipGuard.clear(ip);
+    accountGuard.clear(account);
+    loginTotal.inc({ result: 'success' });
 
     const tokenPayload = { userId: user.id, role: user.role, branchId: user.branchId, storeId: user.storeId };
     const accessToken = signAccessToken(tokenPayload);

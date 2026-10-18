@@ -6,6 +6,9 @@ import { CreateTransactionDto, UpdateJobDto, VoidTransactionDto, idempotencyKeyS
 import { JOB_STATUSES, OPEN_JOB_STATUSES, newReceiptToken, receiptUrl } from './job';
 import { createCheckout } from './checkout.service';
 import { CheckoutError } from './checkout.pricing';
+import { checkoutReplays, checkoutTotal, offlineIssuesTotal } from '../../observability/metrics';
+
+const channelOf = (req: Request): 'offline' | 'online' => (req.body?.offline ? 'offline' : 'online');
 
 export const createTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -30,10 +33,20 @@ export const createTransaction = async (req: Request, res: Response, next: NextF
       idempotencyKey,
     );
 
+    if (replayed) {
+      checkoutReplays.inc();
+    } else {
+      checkoutTotal.inc({ result: 'success', channel: channelOf(req), code: 'ok' });
+      const issues = transaction.offlineIssues;
+      if (Array.isArray(issues)) {
+        for (const issue of issues as { type?: string }[]) offlineIssuesTotal.inc({ type: issue.type ?? 'unknown' });
+      }
+    }
     if (replayed) res.setHeader('Idempotent-Replayed', 'true');
     res.status(replayed ? 200 : 201).json(transaction);
   } catch (err) {
     if (err instanceof CheckoutError) {
+      checkoutTotal.inc({ result: 'failure', channel: channelOf(req), code: err.code });
       res
         .status(err.status)
         .json({ code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) });

@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import morgan from 'morgan';
+import helmet from 'helmet';
 import { env } from './config/env';
+import { checkEnv, parseTrustProxy } from './config/validate-env';
+import { metricsHandler, metricsMiddleware } from './observability/metrics';
+import { requestContext } from './middleware/requestContext';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 
@@ -23,15 +26,29 @@ import receiptRoutes from './modules/receipts/receipt.routes';
 import { createDocsRouter, decideDocsMount } from './modules/docs/docs.routes';
 import { DOCS_BASE_PATH } from './modules/docs/docs.pages';
 
+// Refuse to start with a broken production configuration (example secrets, no database…); log the risky-but-legal ones.
+const envCheck = checkEnv(process.env);
+envCheck.warnings.forEach(warning => logger.warn(warning));
+if (envCheck.errors.length > 0) {
+  envCheck.errors.forEach(error => logger.error(error));
+  process.exit(1);
+}
+
 const app = express();
 
+app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY));
+// The API only speaks JSON, and the docs/receipt pages set their own Content-Security-Policy, so helmet's CSP is off.
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(requestContext);
+app.use(metricsMiddleware);
 app.use(cors({ origin: env.FRONTEND_ORIGIN, credentials: true }));
 // Import files (up to 500 rows) are bigger than the 100kb default, so give just those routes more room.
 // Must come before the global parser, which would otherwise reject them first.
 app.use('/api/v1/products/import', express.json({ limit: '2mb' }));
 app.use(express.json());
-app.use(morgan('dev'));
 
+// Prometheus / Grafana Alloy scrape this; protected by METRICS_TOKEN (see docs/13-monitoring.md)
+app.get('/metrics', metricsHandler);
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 app.use('/api/v1/auth', authRoutes);

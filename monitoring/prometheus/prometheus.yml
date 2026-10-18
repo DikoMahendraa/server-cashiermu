@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: cashiermu-api
+    metrics_path: /metrics
+    # Same value as METRICS_TOKEN in the API's .env (npm run monitoring:token writes it here)
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      # The API running on this machine. On a server, use its address, e.g. api:3000.
+      - targets: ['host.docker.internal:3000']

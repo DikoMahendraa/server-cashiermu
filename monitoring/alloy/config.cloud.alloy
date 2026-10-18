@@ -1,0 +1,100 @@
+// Grafana Alloy for GRAFANA CLOUD: run this next to the API on your server (see docs/13-monitoring.md).
+// Set these environment variables (Grafana Cloud → your stack → "Send Metrics / Send Logs" connection details):
+//   METRICS_TOKEN                  same as the API's METRICS_TOKEN
+//   API_TARGET                     where Alloy reaches the API, e.g. localhost:3000
+//   GC_PROM_URL, GC_PROM_USER      Prometheus remote_write endpoint and user id
+//   GC_LOKI_URL, GC_LOKI_USER      Loki push endpoint and user id
+//   GC_API_KEY                     an access policy token with metrics:write and logs:write
+//   FARO_API_KEY                   (optional) a random string the app sends in the X-API-KEY header
+
+logging {
+  level = "info"
+}
+
+prometheus.remote_write "cloud" {
+  endpoint {
+    url = sys.env("GC_PROM_URL")
+    basic_auth {
+      username = sys.env("GC_PROM_USER")
+      password = sys.env("GC_API_KEY")
+    }
+  }
+}
+
+prometheus.scrape "cashiermu_api" {
+  targets         = [{ "__address__" = sys.env("API_TARGET"), "job" = "cashiermu-api" }]
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  bearer_token    = sys.env("METRICS_TOKEN")
+  forward_to      = [prometheus.remote_write.cloud.receiver]
+}
+
+loki.write "cloud" {
+  endpoint {
+    url = sys.env("GC_LOKI_URL")
+    basic_auth {
+      username = sys.env("GC_LOKI_USER")
+      password = sys.env("GC_API_KEY")
+    }
+  }
+}
+
+local.file_match "api_logs" {
+  path_targets = [{
+    "__path__" = "/var/log/cashiermu/*.log",
+    "job"      = "cashiermu-api",
+    "service"  = "cashiermu-api",
+  }]
+}
+
+loki.source.file "api_logs" {
+  targets    = local.file_match.api_logs.targets
+  forward_to = [loki.process.api_logs.receiver]
+}
+
+loki.process "api_logs" {
+  stage.json {
+    expressions = { level = "level", timestamp = "timestamp" }
+  }
+  stage.labels {
+    values = { level = "level" }
+  }
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339"
+  }
+  forward_to = [loki.write.cloud.receiver]
+}
+
+// The mobile app posts here (put it behind HTTPS, e.g. telemetry.example.com → this port)
+// The receiver writes each item as one logfmt line with no useful labels; promote the few that are worth filtering on
+loki.process "app_logs" {
+  stage.logfmt {
+    mapping = { kind = "", app_name = "", app_environment = "", app_version = "" }
+  }
+  stage.labels {
+    values = { kind = "", app_name = "", app_environment = "" }
+  }
+  stage.static_labels {
+    values = { job = "cashiermu-app", service = "cashiermu-app" }
+  }
+  forward_to = [loki.write.cloud.receiver]
+}
+
+faro.receiver "app" {
+  server {
+    listen_address       = "0.0.0.0"
+    listen_port          = 12347
+    cors_allowed_origins = ["*"]
+    api_key              = sys.env("FARO_API_KEY")
+    rate_limiting {
+      enabled    = true
+      rate       = 50
+      burst_size = 100
+    }
+  }
+  output {
+    logs   = [loki.process.app_logs.receiver]
+    traces = []
+  }
+}
