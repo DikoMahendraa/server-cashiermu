@@ -7,6 +7,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Impor & ekspor produk** (khusus owner), kolom mengikuti jenis usaha toko dari `sector.config.ts`:
+  - `GET /products/import/template` (kolom, contoh isi, petunjuk), `GET /products/export` (semua item, termasuk nonaktif).
+  - `POST /products/import/preview` (hanya simulasi, tidak menulis) dan `POST /products/import` (satu transaksi database; maks. 500 baris).
+  - SKU yang sudah ada diperbarui, bukan digandakan; baris salah dilewati dengan pesan per sel sementara baris benar tetap masuk; kategori yang belum ada dibuat otomatis. Mendukung format Indonesia (`Rp 15.000`, `Ya/Tidak`, `DD/MM/YYYY`). Varian belum ikut. Lihat `docs/09-import-export.md`.
+
 ## [1.4.0] — 2026-10-18
 
 > **Catatan upgrade (penting):** rilis ini membawa **3 migration database**. Backup database, lalu jalankan `npx prisma migrate deploy` **sebelum** menjalankan server versi baru. Efeknya pada data yang sudah ada:

@@ -24,6 +24,9 @@ import { DOCS_BASE_PATH } from './modules/docs/docs.pages';
 const app = express();
 
 app.use(cors({ origin: env.FRONTEND_ORIGIN, credentials: true }));
+// Import files (up to 500 rows) are bigger than the 100kb default, so give just those routes more room.
+// Must come before the global parser, which would otherwise reject them first.
+app.use('/api/v1/products/import', express.json({ limit: '2mb' }));
 app.use(express.json());
 app.use(morgan('dev'));
 
