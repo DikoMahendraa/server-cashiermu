@@ -1,0 +1,68 @@
+# Production stack: PostgreSQL + the API + Caddy (HTTPS in front). Run from this folder:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Variables come from deploy/.env (copy .env.example). Full steps: docs/15-deployment.md
+name: cashiermu
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cashiermu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: cashiermu
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cashiermu -d cashiermu']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    # No published ports: only the API (same private network) can reach the database.
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: cashiermu-api:latest
+    restart: unless-stopped
+    init: true # proper signal handling and zombie reaping for the node process
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATABASE_URL: postgresql://cashiermu:${POSTGRES_PASSWORD}@db:5432/cashiermu
+      LOG_FILE: /app/logs/api.log
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - api-logs:/app/logs
+    networks: [internal]
+    expose: ['3000']
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # certificates live here: keep this volume
+      - caddy-config:/config
+    depends_on: [api]
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  db-data:
+  api-logs:
+  caddy-data:
+  caddy-config:

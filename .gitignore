@@ -6,3 +6,4 @@ uploads/
 monitoring/secrets/*
 !monitoring/secrets/.gitkeep
 logs/
+deploy/.env
