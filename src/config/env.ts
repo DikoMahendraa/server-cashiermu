@@ -23,4 +23,13 @@ export const env = {
   DOCS_ENABLED: process.env.DOCS_ENABLED ? process.env.DOCS_ENABLED === 'true' : !isProduction,
   DOCS_USER: process.env.DOCS_USER || 'docs',
   DOCS_PASSWORD: process.env.DOCS_PASSWORD || '',
+  // How many reverse proxies sit in front of the API (nginx, Cloudflare, a PaaS router…): `1`, `2`, … or `loopback`.
+  // Needed so rate limits and login lockouts see each client's own IP instead of the proxy's. Leave empty when the API
+  // is reached directly. Never `true` unless you control every hop (clients could then fake their IP).
+  TRUST_PROXY: process.env.TRUST_PROXY || '',
+  // Bearer token Prometheus/Alloy must send to GET /metrics. Empty = /metrics is disabled in production.
+  METRICS_TOKEN: process.env.METRICS_TOKEN || '',
+  LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+  // Also write JSON logs to this file (for Grafana Alloy / Loki to tail). Console logging always stays on.
+  LOG_FILE: process.env.LOG_FILE || '',
 };

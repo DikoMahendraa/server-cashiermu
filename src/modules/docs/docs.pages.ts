@@ -45,6 +45,13 @@ export const DOC_PAGES: readonly DocPage[] = [
     navTitle: '11. Expenses & reports',
   },
   { slug: 'offline-sales', file: 'docs/12-offline-sales.md', group: 'guide', navTitle: '12. Offline sales' },
+  { slug: 'monitoring', file: 'docs/13-monitoring.md', group: 'guide', navTitle: '13. Monitoring (Grafana)' },
+  {
+    slug: 'production-checklist',
+    file: 'docs/14-production-checklist.md',
+    group: 'guide',
+    navTitle: '14. Production checklist',
+  },
   { slug: 'changelog', file: 'CHANGELOG.md', group: 'reference', navTitle: 'Changelog' },
   { slug: 'setup-id', file: 'README.md', group: 'reference', navTitle: 'Setup from scratch (Indonesian)' },
   { slug: 'deployment', file: 'DEPLOYMENT_GUIDE.md', group: 'reference', navTitle: 'Deployment guide' },

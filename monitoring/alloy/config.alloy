@@ -1,0 +1,73 @@
+// Grafana Alloy (local stack): ships the API's JSON log file to Loki and receives the mobile app's telemetry.
+// For Grafana Cloud use config.cloud.alloy instead.
+
+logging {
+  level = "info"
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// ── Backend logs: the API writes one JSON object per line to LOG_FILE (logs/api.log) ─────────────────────────────
+local.file_match "api_logs" {
+  path_targets = [{
+    "__path__" = "/var/log/cashiermu/*.log",
+    "job"      = "cashiermu-api",
+    "service"  = "cashiermu-api",
+  }]
+}
+
+loki.source.file "api_logs" {
+  targets    = local.file_match.api_logs.targets
+  forward_to = [loki.process.api_logs.receiver]
+}
+
+loki.process "api_logs" {
+  stage.json {
+    expressions = { level = "level", timestamp = "timestamp" }
+  }
+  // Only `level` becomes a label (low cardinality); route, status, requestId stay inside the log line
+  stage.labels {
+    values = { level = "level" }
+  }
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339"
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+// ── Mobile app telemetry (Grafana Faro): errors, events, measurements ────────────────────────────────────────────
+// The receiver writes each item as one logfmt line with no useful labels; promote the few that are worth filtering on
+loki.process "app_logs" {
+  stage.logfmt {
+    mapping = { kind = "", app_name = "", app_environment = "", app_version = "" }
+  }
+  stage.labels {
+    values = { kind = "", app_name = "", app_environment = "" }
+  }
+  stage.static_labels {
+    values = { job = "cashiermu-app", service = "cashiermu-app" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+faro.receiver "app" {
+  server {
+    listen_address       = "0.0.0.0"
+    listen_port          = 12347
+    cors_allowed_origins = ["*"]
+    rate_limiting {
+      enabled    = true
+      rate       = 50
+      burst_size = 100
+    }
+  }
+  output {
+    logs   = [loki.process.app_logs.receiver]
+    traces = []
+  }
+}

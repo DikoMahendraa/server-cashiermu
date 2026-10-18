@@ -1,0 +1,300 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: cashiermu-api
+    folder: CashierMu
+    interval: 1m
+    rules:
+      - uid: cm-api-down
+        title: API is down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'max(up{job="cashiermu-api"})'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: 'Prometheus cannot scrape the API'
+          description: 'The API has not answered /metrics for 2 minutes. Check the process, the host and the reverse proxy.'
+        labels:
+          severity: critical
+      - uid: cm-db-down
+        title: Database is not answering
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'max(cashiermu_db_up)'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: 'The API cannot reach PostgreSQL'
+          description: 'cashiermu_db_up has been 0 for 2 minutes: every sale will fail. Check the database service and DATABASE_URL.'
+        labels:
+          severity: critical
+      - uid: cm-5xx
+        title: Server errors above 5%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'sum(rate(cashiermu_http_request_duration_seconds_count{status=~"5.."}[5m])) / clamp_min(sum(rate(cashiermu_http_request_duration_seconds_count[5m])), 0.001) * (sum(rate(cashiermu_http_request_duration_seconds_count[5m])) > bool 0.05)'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: 'More than 5% of requests are failing with 5xx'
+          description: 'Look at the error logs panel on the Backend dashboard; the X-Request-Id in a client report finds the exact line.'
+        labels:
+          severity: critical
+      - uid: cm-slow
+        title: Slow responses (p95 above 2s)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'histogram_quantile(0.95, sum by (le) (rate(cashiermu_http_request_duration_seconds_bucket[5m]))) * (sum(rate(cashiermu_http_request_duration_seconds_count[5m])) > bool 0.05)'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [2] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: 'p95 latency is above 2 seconds for 10 minutes'
+          description: 'Check the slowest routes table, database load and event loop lag.'
+        labels:
+          severity: warning
+      - uid: cm-checkout-failures
+        title: Unexpected checkout failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'sum(increase(cashiermu_checkout_total{result="failure",code!~"PRICE_CHANGED|INSUFFICIENT_STOCK|SHIFT_NOT_OPEN|SHIFT_REQUIRED|DISCOUNT_NOT_ALLOWED"}[15m]))'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [5] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'Checkouts are failing for reasons other than normal business rules'
+          description: "See 'Checkouts by result and code' on the Backend dashboard. A cashier could be unable to take payment."
+        labels:
+          severity: warning
+      - uid: cm-login-lockouts
+        title: Many login lockouts
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'sum(increase(cashiermu_login_total{result="locked"}[10m]))'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [10] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'Logins are being locked out repeatedly'
+          description: 'Either someone is guessing PINs, or TRUST_PROXY is not set and every user shares one IP behind the proxy.'
+        labels:
+          severity: warning
+  - orgId: 1
+    name: cashiermu-app
+    folder: CashierMu
+    interval: 1m
+    rules:
+      - uid: cm-app-errors
+        title: App errors spiking
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({job="cashiermu-app", app_environment="production", kind="exception"} [10m]))'
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [10] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'More than 10 app errors in 10 minutes'
+          description: 'Open the App dashboard: errors over time by app version shows whether a new release broke something.'
+        labels:
+          severity: warning
+      - uid: cm-app-refused-sales
+        title: Offline sale refused by the server
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({job="cashiermu-app", app_environment="production", kind="event"} |= "event_name=offline_sale_refused" [30m]))'
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+              datasource: { type: __expr__, uid: __expr__ }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              datasource: { type: __expr__, uid: __expr__ }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'A sale made offline was refused when syncing'
+          description: 'A customer paid but the sale is not recorded. The cashier sees a red notice with the reason; check the failed sales list and fix the cause.'
+        labels:
+          severity: critical

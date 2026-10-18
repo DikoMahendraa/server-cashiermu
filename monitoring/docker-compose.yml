@@ -1,0 +1,62 @@
+# Local Grafana stack for CashierMu: Prometheus (metrics), Loki (logs), Alloy (collector + app telemetry receiver), Grafana.
+# Start:  npm run monitoring:up      Open:  http://localhost:3001  (admin / admin, change it)
+# Details: docs/13-monitoring.md
+name: cashiermu-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./secrets/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus-data:/prometheus
+    ports: ['9090:9090']
+    extra_hosts: ['host.docker.internal:host-gateway'] # reach the API running on this machine
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
+    ports: ['3100:3100']
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../logs:/var/log/cashiermu:ro
+    ports:
+      - '12345:12345' # Alloy UI
+      - '12347:12347' # app telemetry (Grafana Faro) is POSTed here
+    depends_on: [loki]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ['3001:3000']
+    depends_on: [prometheus, loki]
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:

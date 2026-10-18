@@ -7,6 +7,25 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-10-18
+
+> **Catatan upgrade (penting):** tidak ada migration database. **Sebelum deploy**, periksa `.env` production: server kini **menolak start** bila `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` pendek (< 32 karakter), sama satu sama lain, atau masih berupa contoh, atau bila `DATABASE_URL` masih kredensial contoh. Set juga `TRUST_PROXY` (jumlah reverse proxy di depan API, biasanya `1`), `PUBLIC_BASE_URL`, dan bila memakai Grafana `METRICS_TOKEN` + `LOG_FILE`. Daftar lengkap: `docs/14-production-checklist.md`.
+> **Kompatibilitas app:** app versi lama tetap berjalan. Respons 500 kini berbentuk `{ code, message, requestId }`.
+
+### Security
+
+- **Server berhenti saat konfigurasi production berbahaya**: secret JWT contoh/pendek/sama, atau kredensial database contoh (`src/config/validate-env.ts`). Pengaturan berisiko lain (mis. `TRUST_PROXY` kosong) dicatat sebagai peringatan saat start.
+- **`TRUST_PROXY`** (baru): jumlah reverse proxy di depan API. Tanpa ini, di belakang proxy semua pengguna terlihat memakai satu IP sehingga beberapa login gagal bisa mengunci semua toko. Lihat `docs/14-production-checklist.md`.
+- Respons 500 tidak lagi membocorkan pesan error internal di production; mengembalikan `code: INTERNAL_ERROR` dan `requestId`. Setiap respons membawa header `X-Request-Id`.
+- `helmet` (header keamanan) dan penghapusan `X-Powered-By`.
+- Penguncian login kini per alamat **dan** per akun, dibatasi ukurannya (sebelumnya map tanpa batas), dan waktu respons untuk akun yang tidak ada sama dengan PIN salah.
+- `POST /auth/check-credential`: batas sendiri (30 per 15 menit) dan hanya mengembalikan `id`, `name`, `role`, `avatarUrl` (tanpa `storeId`/`branchId`).
+
+### Added
+
+- **Monitoring Grafana.** `GET /metrics` (Prometheus, wajib `Authorization: Bearer <METRICS_TOKEN>`; nonaktif di production bila token kosong) dengan durasi request per pola route, checkout (online/offline, kode error), login, `cashiermu_db_up`, dan metrik Node. Log JSON terstruktur (`LOG_FILE`) berisi `requestId`, route, status, durasi (tanpa URL/body/nama/telepon). Folder `monitoring/`: `docker-compose.yml` (Prometheus, Loki, Alloy, Grafana), dua dashboard (Backend, App), 8 aturan alert, dan konfigurasi Alloy untuk lokal dan Grafana Cloud. Jalankan `npm run monitoring:up`. Lihat `docs/13-monitoring.md`.
+- Variabel baru: `TRUST_PROXY`, `METRICS_TOKEN`, `LOG_LEVEL`, `LOG_FILE`. `morgan` diganti log terstruktur.
+
 ## [1.8.0] — 2026-10-18
 
 > **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261023100000_offline_sales`, hanya menambah kolom; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru.
