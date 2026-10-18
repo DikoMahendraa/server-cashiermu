@@ -1,0 +1,16 @@
+# Caddy gets and renews the HTTPS certificate for API_DOMAIN by itself (needs ports 80 and 443 open and the DNS
+# record pointing at this server) and forwards requests to the API container.
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# /metrics is for Prometheus / Alloy inside the private network only; it must not be reachable from the internet
+	@metrics path /metrics /metrics/*
+	respond @metrics 404
+
+	header -Server
+
+	reverse_proxy api:3000 {
+		# One proxy hop in front of the API: matches TRUST_PROXY=1
+		header_up X-Forwarded-For {remote_host}
+	}
+}

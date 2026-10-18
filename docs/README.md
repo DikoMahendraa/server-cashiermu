@@ -19,6 +19,7 @@ Read them in order the first time; after that, use them as a reference.
 | 12  | [Offline sales](12-offline-sales.md)                 | You are touching checkout, sync or the offline rules |
 | 13  | [Monitoring (Grafana)](13-monitoring.md)             | You want dashboards, alerts or to find out why something broke |
 | 14  | [Production checklist](14-production-checklist.md)   | You are about to put real stores on the API |
+| 15  | [Deploying to a VPS](15-deployment.md)               | You are setting up or updating the production server |
 
 Other files in the repo root: [`README.md`](../README.md) (long from-zero setup in Indonesian, including
 installing PostgreSQL), [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md), [`CHANGELOG.md`](../CHANGELOG.md),

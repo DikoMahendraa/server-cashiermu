@@ -7,6 +7,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Deploy ke VPS dengan Docker.** `Dockerfile` (dua tahap, berjalan sebagai user non-root, healthcheck) dan folder `deploy/`: `docker-compose.prod.yml` (PostgreSQL + API + Caddy untuk HTTPS otomatis; database tidak membuka port; `/metrics` disembunyikan dari internet), `Caddyfile`, `.env.example`, `backup.sh` (dump harian + salinan di luar server) dan `restore-test.sh` (membuktikan backup bisa dipulihkan di database sementara). Panduan langkah demi langkah: `docs/15-deployment.md`.
+
+### Changed
+
+- `prisma` (CLI migrasi) dipindah ke `dependencies` supaya `prisma migrate deploy` bisa dijalankan di image production.
+
 ## [1.8.1] — 2026-10-18
 
 > **Catatan upgrade (penting):** tidak ada migration database. **Sebelum deploy**, periksa `.env` production: server kini **menolak start** bila `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` pendek (< 32 karakter), sama satu sama lain, atau masih berupa contoh, atau bila `DATABASE_URL` masih kredensial contoh. Set juga `TRUST_PROXY` (jumlah reverse proxy di depan API, biasanya `1`), `PUBLIC_BASE_URL`, dan bila memakai Grafana `METRICS_TOKEN` + `LOG_FILE`. Daftar lengkap: `docs/14-production-checklist.md`.

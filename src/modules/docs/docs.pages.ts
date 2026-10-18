@@ -52,6 +52,7 @@ export const DOC_PAGES: readonly DocPage[] = [
     group: 'guide',
     navTitle: '14. Production checklist',
   },
+  { slug: 'deployment-vps', file: 'docs/15-deployment.md', group: 'guide', navTitle: '15. Deploying to a VPS' },
   { slug: 'changelog', file: 'CHANGELOG.md', group: 'reference', navTitle: 'Changelog' },
   { slug: 'setup-id', file: 'README.md', group: 'reference', navTitle: 'Setup from scratch (Indonesian)' },
   { slug: 'deployment', file: 'DEPLOYMENT_GUIDE.md', group: 'reference', navTitle: 'Deployment guide' },
