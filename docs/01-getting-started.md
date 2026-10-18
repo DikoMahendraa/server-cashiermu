@@ -32,6 +32,7 @@ Edit `.env`:
 | `JWT_REFRESH_EXPIRES_IN`          | Refresh token lifetime                                    | default `7d`                                  |
 | `PORT`                            | HTTP port                                                 | default `3000`                                |
 | `FRONTEND_ORIGIN`                 | Allowed CORS origin                                       | default `http://localhost:8081`               |
+| `PUBLIC_BASE_URL`                 | Public address used in receipt links (`/r/<token>`)       | dev default `http://localhost:3000`; empty in production = no links |
 | `MAX_LOGIN_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES` | Login lockout settings                        | defaults `5`, `5`                             |
 | `E2E_*`                           | Throwaway account for `npm run test:e2e`                  | local only                                    |
 | `DOCS_ENABLED`                    | Serve this guide at `/docs`                               | default: **on** in development, **off** in production |

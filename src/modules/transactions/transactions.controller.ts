@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import prisma from '../../config/database';
-import { CreateTransactionDto, VoidTransactionDto, idempotencyKeySchema } from './transactions.schema';
+import { env } from '../../config/env';
+import { CreateTransactionDto, UpdateJobDto, VoidTransactionDto, idempotencyKeySchema } from './transactions.schema';
+import { JOB_STATUSES, OPEN_JOB_STATUSES, newReceiptToken, receiptUrl } from './job';
 import { createCheckout } from './checkout.service';
 import { CheckoutError } from './checkout.pricing';
 
@@ -53,13 +55,28 @@ export const listTransactions = async (req: Request, res: Response, next: NextFu
       typeof req.query['status'] === 'string' ? (req.query['status'] as 'paid' | 'voided' | 'pending') : undefined;
     const from = typeof req.query['from'] === 'string' ? req.query['from'] : undefined;
     const to = typeof req.query['to'] === 'string' ? req.query['to'] : undefined;
+    // ?jobStatus=open (anything not completed) or one status; only service stores have jobs
+    const jobParam = typeof req.query['jobStatus'] === 'string' ? req.query['jobStatus'] : undefined;
+    const jobFilter =
+      jobParam === 'open'
+        ? { in: OPEN_JOB_STATUSES }
+        : jobParam && (JOB_STATUSES as readonly string[]).includes(jobParam)
+          ? (jobParam as (typeof JOB_STATUSES)[number])
+          : undefined;
     const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
     const sort = req.query['sort'] === 'asc' ? 'asc' : 'desc';
 
-    // Cashier hanya boleh lihat transaksi miliknya sendiri.
+    // Cashier hanya boleh lihat transaksi miliknya sendiri, kecuali daftar pekerjaan layanan: pekerjaan harus
+    // bisa dilanjutkan kasir shift berikutnya, jadi seluruh toko terlihat (hanya lewat filter jobStatus).
     // Owner boleh filter per-user via query param, atau lihat semua.
     const userIdFilter =
-      role === 'owner' ? (typeof req.query['userId'] === 'string' ? req.query['userId'] : undefined) : selfId;
+      role === 'owner'
+        ? typeof req.query['userId'] === 'string'
+          ? req.query['userId']
+          : undefined
+        : jobFilter
+          ? undefined
+          : selfId;
 
     const transactions = await prisma.transaction.findMany({
       where: {
@@ -68,6 +85,7 @@ export const listTransactions = async (req: Request, res: Response, next: NextFu
         ...(shiftId ? { shiftId } : {}),
         ...(branchId ? { branchId } : {}),
         ...(status ? { status } : {}),
+        ...(jobFilter ? { jobStatus: jobFilter, status: 'paid' as const } : {}),
         ...(from || to
           ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
           : {}),
@@ -76,6 +94,7 @@ export const listTransactions = async (req: Request, res: Response, next: NextFu
               OR: [
                 { invoiceNumber: { contains: search, mode: 'insensitive' } },
                 { customerName: { contains: search, mode: 'insensitive' } },
+                { customerPhone: { contains: search } },
               ],
             }
           : {}),
@@ -182,6 +201,77 @@ export const voidTransaction = async (req: Request, res: Response, next: NextFun
     });
 
     res.json({ message: 'Transaction voided successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Staff (owner or cashier) moves a service order through its stages or fixes customer/ETA details. */
+export const updateJob = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const id = String(req.params['id']);
+    const storeId = req.user!.storeId;
+    const body = req.body as UpdateJobDto;
+
+    const existing = await prisma.transaction.findFirst({ where: { id, storeId } });
+    if (!existing) {
+      res.status(404).json({ code: 'NOT_FOUND', message: 'Transaction not found' });
+      return;
+    }
+    if (existing.jobStatus === null) {
+      res.status(422).json({ code: 'NOT_A_JOB', message: 'Transaksi ini bukan pekerjaan layanan' });
+      return;
+    }
+    if (existing.status === 'voided') {
+      res.status(409).json({ code: 'TRANSACTION_VOIDED', message: 'Transaksi sudah dibatalkan' });
+      return;
+    }
+
+    const statusChanged = body.jobStatus !== undefined && body.jobStatus !== existing.jobStatus;
+    const updated = await prisma.transaction.update({
+      where: { id },
+      data: {
+        ...(body.jobStatus !== undefined ? { jobStatus: body.jobStatus } : {}),
+        ...(statusChanged ? { jobUpdatedAt: new Date() } : {}),
+        ...(body.dueAt !== undefined ? { dueAt: body.dueAt } : {}),
+        ...(body.customerName !== undefined ? { customerName: body.customerName } : {}),
+        ...(body.customerPhone !== undefined ? { customerPhone: body.customerPhone } : {}),
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+        items: true,
+        payments: true,
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Returns the public receipt link; rows created before this feature get their token on first request. */
+export const getReceiptLink = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const id = String(req.params['id']);
+    const storeId = req.user!.storeId;
+
+    const existing = await prisma.transaction.findFirst({ where: { id, storeId }, select: { receiptToken: true } });
+    if (!existing) {
+      res.status(404).json({ code: 'NOT_FOUND', message: 'Transaction not found' });
+      return;
+    }
+
+    let token = existing.receiptToken;
+    if (!token) {
+      // updateMany with a null guard: two simultaneous requests cannot overwrite each other's token
+      await prisma.transaction.updateMany({
+        where: { id, storeId, receiptToken: null },
+        data: { receiptToken: newReceiptToken() },
+      });
+      token = (await prisma.transaction.findFirst({ where: { id, storeId }, select: { receiptToken: true } }))!
+        .receiptToken!;
+    }
+    res.json({ token, url: env.PUBLIC_BASE_URL ? receiptUrl(env.PUBLIC_BASE_URL, token) : null });
   } catch (err) {
     next(err);
   }

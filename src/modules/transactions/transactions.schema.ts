@@ -1,4 +1,15 @@
 import { z } from 'zod';
+import { JOB_STATUSES } from './job';
+
+// Indonesian numbers are typed many ways (0812-3456, +62 812 3456, (021) 555); keep it loose, but 8–15 digits.
+const phoneSchema = z
+  .string()
+  .trim()
+  .max(30)
+  .regex(/^[0-9+()\-\s]*$/, 'Nomor telepon hanya boleh berisi angka, +, -, spasi dan tanda kurung')
+  .refine(value => value === '' || (value.replace(/\D/g, '').length >= 8 && value.replace(/\D/g, '').length <= 15), {
+    message: 'Nomor telepon harus 8-15 digit',
+  });
 
 // Only `optionId` matters: the server looks the option up and prices it from the database.
 // The other fields are what older app versions send; they are accepted and ignored.
@@ -60,6 +71,9 @@ export const createTransactionSchema = z.object({
   shiftId: z.string().uuid().nullable().optional(),
   branchId: z.string().uuid().optional(),
   customerName: z.string().default(''),
+  // Service stores only; ignored for other business types
+  customerPhone: phoneSchema.default(''),
+  dueAt: z.coerce.date().nullable().optional(),
   note: z.string().default(''),
   items: z.array(transactionItemSchema).min(1),
   discount: discountSchema.optional(),
@@ -78,5 +92,15 @@ export const voidTransactionSchema = z.object({
   reason: z.string().min(1),
 });
 
+export const updateJobSchema = z
+  .object({
+    jobStatus: z.enum(JOB_STATUSES).optional(),
+    dueAt: z.coerce.date().nullable().optional(),
+    customerName: z.string().trim().max(100).optional(),
+    customerPhone: phoneSchema.optional(),
+  })
+  .refine(value => Object.keys(value).length > 0, { message: 'Tidak ada yang diubah' });
+
+export type UpdateJobDto = z.infer<typeof updateJobSchema>;
 export type CreateTransactionDto = z.infer<typeof createTransactionSchema>;
 export type VoidTransactionDto = z.infer<typeof voidTransactionSchema>;
