@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
+import bcrypt from 'bcrypt';
 import prisma from '../../config/database';
-import { UpdateStoreDto } from './store.schema';
+import { logger } from '../../utils/logger';
+import { UpdateStoreDto, DeleteAccountDto } from './store.schema';
+import { deleteStoreData } from './store.delete';
 import { isValidSubtype } from '../sectors/sector.config';
 
 export const getStore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -43,6 +46,29 @@ export const updateStore = async (req: Request, res: Response, next: NextFunctio
       data: body,
     });
     res.json(store);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Google Play requires an in-app way to delete the account and its data. The owner confirms with their PIN, then the
+// whole store (staff, products, transactions) is erased for good. Owner only: staff are managed by the owner.
+export const deleteAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { pin } = req.body as DeleteAccountDto;
+    const { userId, storeId } = req.user!;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.storeId !== storeId || !(await bcrypt.compare(pin, user.pinHash))) {
+      res.status(401).json({ message: 'Invalid PIN' });
+      return;
+    }
+
+    // A big store has many rows; the default 5 s transaction limit is too short for it
+    await prisma.$transaction(tx => deleteStoreData(tx, storeId), { timeout: 60_000 });
+    logger.info('store deleted by owner', { storeId });
+
+    res.json({ message: 'Account and all store data deleted' });
   } catch (err) {
     next(err);
   }

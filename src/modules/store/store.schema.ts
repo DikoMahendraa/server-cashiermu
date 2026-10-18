@@ -29,3 +29,12 @@ export const updateStoreSchema = z.object({
 });
 
 export type UpdateStoreDto = z.infer<typeof updateStoreSchema>;
+
+export const deleteAccountSchema = z.object({
+  pin: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
+});
+
+export type DeleteAccountDto = z.infer<typeof deleteAccountSchema>;

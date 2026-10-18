@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Delete account.** `POST /store/delete-account` (owner only, body `{ pin }`) permanently deletes the store and everything in it (staff, products, transactions, shifts, expenses) in one database transaction. The PIN is checked first, and the route is limited to 5 attempts per 15 minutes per owner. Required by Google Play for apps with accounts. Covered by `test/e2e/delete-account.e2e.test.ts`.
 - **Deploy to a VPS with Docker.** `Dockerfile` (two stages, runs as a non-root user, healthcheck) and the `deploy/` folder: `docker-compose.prod.yml` (PostgreSQL + API + Caddy for automatic HTTPS; the database does not expose a port; `/metrics` is hidden from the internet), `Caddyfile`, `.env.example`, `backup.sh` (daily dump + off-server copy) and `restore-test.sh` (proves a backup can be restored into a temporary database). Step-by-step guide: `docs/15-deployment.md`.
 
 ### Changed
