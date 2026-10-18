@@ -1,6 +1,6 @@
 {
   "name": "cashiermu-api",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "CashierMu POS Backend API",
   "main": "dist/app.js",
   "scripts": {
