@@ -52,6 +52,36 @@ services:
     networks: [internal]
     expose: ['3000']
 
+  # Sends metrics and logs to Grafana Cloud and receives the app's telemetry. Opt-in: start it with
+  #   docker compose -f docker-compose.prod.yml --profile monitoring up -d
+  # after filling the GC_* values in .env (see docs/18-grafana-cloud.md).
+  alloy:
+    profiles: [monitoring]
+    logging: *default-logging
+    image: grafana/alloy:v1.5.1
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      API_TARGET: api:3000
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      GC_PROM_URL: ${GC_PROM_URL:-}
+      GC_PROM_USER: ${GC_PROM_USER:-}
+      GC_LOKI_URL: ${GC_LOKI_URL:-}
+      GC_LOKI_USER: ${GC_LOKI_USER:-}
+      GC_API_KEY: ${GC_API_KEY:-}
+      FARO_API_KEY: ${FARO_API_KEY:-}
+    volumes:
+      - ../monitoring/alloy/config.cloud.alloy:/etc/alloy/config.alloy:ro
+      - api-logs:/var/log/cashiermu:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on: [api]
+    networks: [internal]
+    expose: ['12347']
+
   caddy:
     logging: *default-logging
     image: caddy:2-alpine
@@ -59,6 +89,7 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
       DOCS_DOMAIN: ${DOCS_DOMAIN:-docs.cashiermu.com}
+      TELEMETRY_DOMAIN: ${TELEMETRY_DOMAIN:-telemetry.cashiermu.com}
     ports:
       - '80:80'
       - '443:443'
@@ -78,3 +109,4 @@ volumes:
   api-logs:
   caddy-data:
   caddy-config:
+  alloy-data:

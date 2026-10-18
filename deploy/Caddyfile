@@ -35,3 +35,19 @@
 		respond 404
 	}
 }
+
+# The mobile app posts its telemetry (errors, slow calls, offline syncs) here; Caddy forwards it to Alloy's Faro
+# receiver. Only works while Alloy is running (--profile monitoring). Needs DNS: telemetry -> this server.
+{$TELEMETRY_DOMAIN} {
+	encode zstd gzip
+	header -Server
+
+	@faro path /collect /collect/*
+	handle @faro {
+		reverse_proxy alloy:12347
+	}
+
+	handle {
+		respond 404
+	}
+}
