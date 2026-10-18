@@ -15,6 +15,7 @@ Read them in order the first time; after that, use them as a reference.
 | 8   | [Business sectors](08-sectors.md)                    | You are adding or changing sector-specific product fields |
 | 9   | [Import & export](09-import-export.md)               | You are changing the product spreadsheet template/import |
 | 10  | [Service jobs & receipt](10-service-jobs.md)         | You are touching job status or the public receipt page |
+| 11  | [Expenses & reports](11-expenses-and-reports.md)     | You are touching expenses, net profit or report exports |
 
 Other files in the repo root: [`README.md`](../README.md) (long from-zero setup in Indonesian, including
 installing PostgreSQL), [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md), [`CHANGELOG.md`](../CHANGELOG.md),

@@ -7,6 +7,19 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-10-18
+
+> **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261022100000_expenses`, hanya menambah tabel dan enum; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru.
+> **Kompatibilitas app:** app versi lama tetap berjalan (field baru pada `/reports/profit` hanya tambahan); fitur pengeluaran, laba bersih, dan kinerja karyawan butuh app ≥ 1.7.0.
+
+### Added
+
+- **Pengeluaran dan laba bersih** (khusus owner). Migration `20261022100000_expenses` menambah tabel `Expense` (kategori tetap: sewa, gaji, listrik/air/internet, transportasi, promosi, perlengkapan, lainnya) dan enum `ExpenseCategory`. Pembelian stok untuk dijual **bukan** pengeluaran (sudah masuk HPP).
+  - `GET/POST /expenses`, `PATCH/DELETE /expenses/:id`. Cabang yang dikirim harus milik toko (`422 BRANCH_NOT_FOUND`).
+  - `GET /reports/profit` kini mengembalikan `expenses`, `netProfit` dan `netMarginPct` (bernilai `null` bila difilter per karyawan, karena pengeluaran tidak melekat pada kasir).
+- **Kinerja karyawan** — `GET /reports/employee-performance`: penjualan bersih, rata-rata per transaksi, laba kotor, porsi penjualan, dan transaksi yang dibatalkan per karyawan.
+- **Ekspor tabel** — `GET /reports/export/:dataset` (`transactions`, `expenses`, `employees`; maks. 5.000 baris, waktu WIB). Teks berawalan `=`, `+`, `-`, `@` diberi awalan `'` agar tidak dieksekusi sebagai rumus spreadsheet. Lihat `docs/11-expenses-and-reports.md`. PDF dibuat di aplikasi dari tabel yang sama.
+
 ## [1.6.0] — 2026-10-18
 
 > **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261021100000_service_jobs_receipt_token`, hanya menambah kolom/enum; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru. Set `PUBLIC_BASE_URL` (mis. `https://api.example.com`) agar tautan struk publik bisa dibagikan.
