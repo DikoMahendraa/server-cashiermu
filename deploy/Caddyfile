@@ -14,3 +14,24 @@
 		header_up X-Forwarded-For {remote_host}
 	}
 }
+
+# Developer documentation on its own subdomain. It is the same /docs site the API serves (protected by DOCS_PASSWORD),
+# so only /docs is forwarded; everything else on this name is a 404. Needs DNS: docs -> this server.
+{$DOCS_DOMAIN} {
+	encode zstd gzip
+	header -Server
+
+	redir / /docs/ 302
+
+	# `handle` blocks are tried in order and the first match wins (plain `respond` would run before `reverse_proxy`)
+	@docs path /docs /docs/*
+	handle @docs {
+		reverse_proxy api:3000 {
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	handle {
+		respond 404
+	}
+}
