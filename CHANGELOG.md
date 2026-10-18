@@ -7,6 +7,19 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-10-18
+
+> **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261023100000_offline_sales`, hanya menambah kolom; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru.
+> **Kompatibilitas app:** app versi lama tetap berjalan; mode offline butuh app ≥ 1.8.0.
+
+### Added
+
+- **Transaksi offline.** Migration `20261023100000_offline_sales` menambah `Transaction.syncedAt`, `offlineReceiptNumber` dan `offlineIssues`. `POST /transactions` menerima blok opsional `offline: { createdAt, receiptNumber }` untuk transaksi yang dibuat saat HP tidak terhubung dan dikirim belakangan:
+  - Waktu transaksi disimpan sesuai kejadian asli (tidak boleh lebih dari 5 menit di masa depan, `OFFLINE_SALE_IN_FUTURE`; atau lebih dari 30 hari, `OFFLINE_SALE_TOO_OLD`).
+  - Harga yang sudah berubah tetap memakai harga yang dilihat pelanggan, **hanya jika** produk/pengaturan toko memang diubah setelah transaksi terjadi; selain itu tetap `PRICE_CHANGED`. Dicatat sebagai `PRICE_ADJUSTED`.
+  - Stok boleh menjadi negatif (`STOCK_NEGATIVE`) dan shift yang sudah ditutup tetap menerima transaksinya (`SHIFT_CLOSED`); semuanya tercatat di `offlineIssues` untuk dicek owner.
+  - Nomor struk resmi diberikan server; nomor sementara dari HP disimpan di `offlineReceiptNumber`. Idempotency key yang sama tidak pernah membuat transaksi ganda. Lihat `docs/12-offline-sales.md`.
+
 ## [1.7.0] — 2026-10-18
 
 > **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261022100000_expenses`, hanya menambah tabel dan enum; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru.
