@@ -18,6 +18,7 @@ import pendingBillsRoutes from './modules/pending-bills/pending-bills.routes';
 import reportsRoutes from './modules/reports/reports.routes';
 import discountsRoutes from './modules/discounts/discounts.routes';
 import sectorsRoutes from './modules/sectors/sectors.routes';
+import receiptRoutes from './modules/receipts/receipt.routes';
 import { createDocsRouter, decideDocsMount } from './modules/docs/docs.routes';
 import { DOCS_BASE_PATH } from './modules/docs/docs.pages';
 
@@ -44,6 +45,7 @@ app.use('/api/v1/pending-bills', pendingBillsRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/discounts', discountsRoutes);
 app.use('/api/v1/sectors', sectorsRoutes);
+app.use('/r', receiptRoutes);
 
 const docs = decideDocsMount({
   enabled: env.DOCS_ENABLED,

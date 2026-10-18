@@ -7,6 +7,20 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-10-18
+
+> **Catatan upgrade (penting):** rilis ini membawa **1 migration database** (`20261021100000_service_jobs_receipt_token`, hanya menambah kolom/enum; data lama utuh). Backup database, lalu jalankan `npx prisma migrate deploy` sebelum menjalankan server baru. Set `PUBLIC_BASE_URL` (mis. `https://api.example.com`) agar tautan struk publik bisa dibagikan.
+> **Kompatibilitas app:** app versi lama tetap berjalan; fitur pesanan Jasa & Layanan butuh app ≥ 1.6.0.
+
+### Added
+
+- **Pelacakan pesanan untuk Jasa & Layanan.** Migration `20261021100000_service_jobs_receipt_token` menambah `Transaction.customerPhone`, `jobStatus` (`pending → in_progress → ready → completed`), `jobUpdatedAt`, `dueAt` dan `receiptToken` (+ enum `JobStatus`). Hanya toko `service` yang mendapat `jobStatus`; jenis usaha lain tidak berubah. Status pembayaran dan status pekerjaan terpisah.
+  - `POST /transactions` menerima `customerPhone` (8–15 digit) dan `dueAt`.
+  - `GET /transactions?jobStatus=open|<status>` (kasir melihat seluruh toko untuk filter ini agar shift berikutnya bisa melanjutkan), `PATCH /transactions/:id/job`, `POST /transactions/:id/receipt-link`. Error: `NOT_A_JOB`, `TRANSACTION_VOIDED`.
+- **Halaman struk publik `GET /r/:token`** (tanpa login, token acak 192-bit): nama usaha, item, total dan status pesanan terbaru; tanpa nama kasir/id internal; HTML di-escape, dibatasi per IP, tidak di-index, tanpa script. Set `PUBLIC_BASE_URL` di production (kosong = link tidak ditawarkan). Lihat `docs/10-service-jobs.md`.
+
+## [1.5.0] — 2026-10-18
+
 ### Added
 
 - **Impor & ekspor produk** (khusus owner), kolom mengikuti jenis usaha toko dari `sector.config.ts`:

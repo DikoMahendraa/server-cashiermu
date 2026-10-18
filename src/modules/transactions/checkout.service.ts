@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { generateInvoiceNumber } from '../../utils/invoice';
 import { CreateTransactionDto } from './transactions.schema';
+import { newReceiptToken } from './job';
 import { CheckoutError, PricingProduct, priceCart, settlePayments } from './checkout.pricing';
 
 export interface CheckoutContext {
@@ -233,6 +234,12 @@ export async function createCheckout(
             cashPaid: settled.cashTendered,
             changeAmount: settled.changeAmount,
             customerName: body.customerName,
+            customerPhone: body.customerPhone,
+            receiptToken: newReceiptToken(),
+            // Job tracking exists only for service businesses; everyone else behaves exactly as before.
+            ...(store.sector === 'service'
+              ? { jobStatus: 'pending' as const, jobUpdatedAt: new Date(), dueAt: body.dueAt ?? null }
+              : {}),
             note: body.note,
             items: {
               create: cart.items.map(item => ({

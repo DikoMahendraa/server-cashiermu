@@ -250,6 +250,7 @@ model Transaction {
   cashPaid            Decimal           @default(0) @db.Decimal(15, 2)
   changeAmount        Decimal           @default(0) @db.Decimal(15, 2)
   customerName        String            @default("")
+  customerPhone       String            @default("")
   status              TransactionStatus @default(paid)
   voidReason          String?
   voidedAt            DateTime?
@@ -257,6 +258,12 @@ model Transaction {
   note                String            @default("")
   // Client-generated key per checkout attempt; makes POST /transactions safe to retry.
   idempotencyKey      String?
+  // Job tracking, only for service stores (null = not a job). Payment and job status are independent.
+  jobStatus           JobStatus?
+  jobUpdatedAt        DateTime?
+  dueAt               DateTime?
+  // Unguessable token for the public receipt page (/r/:token). Created at checkout, or lazily for old rows.
+  receiptToken        String?           @unique
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -270,6 +277,14 @@ model Transaction {
   // Invoice sequences are per store (INV-YYYYMMDD-0001 restarts for every store).
   @@unique([storeId, invoiceNumber])
   @@unique([storeId, idempotencyKey])
+  @@index([storeId, jobStatus])
+}
+
+enum JobStatus {
+  pending
+  in_progress
+  ready
+  completed
 }
 
 enum TransactionStatus {

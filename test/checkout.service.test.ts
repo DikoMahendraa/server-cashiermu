@@ -19,6 +19,7 @@ function seed() {
   return {
     store: {
       id: 'store-1',
+      sector: 'general',
       shiftEnabled: true,
       cashierCanDiscount: false,
       taxEnabled: false,
@@ -241,6 +242,17 @@ beforeEach(() => {
 });
 
 describe('createCheckout', () => {
+  it('only service stores get a job status; every sale gets a receipt token', async () => {
+    const retail = await createCheckout(db, cashier, body({ dueAt: new Date('2026-12-01T00:00:00Z') }));
+    expect(retail.transaction).not.toHaveProperty('jobStatus');
+    expect(retail.transaction).toMatchObject({ receiptToken: expect.stringMatching(/^[A-Za-z0-9_-]{20,}$/) });
+
+    state.store.sector = 'service';
+    const due = new Date('2026-12-01T00:00:00Z');
+    const job = await createCheckout(db, cashier, body({ customerPhone: '0812345678', dueAt: due }));
+    expect(job.transaction).toMatchObject({ jobStatus: 'pending', customerPhone: '0812345678', dueAt: due });
+  });
+
   it('creates a sale with server prices, cash net of change, and shift totals', async () => {
     const { transaction, replayed } = await createCheckout(db, cashier, body());
     expect(replayed).toBe(false);
