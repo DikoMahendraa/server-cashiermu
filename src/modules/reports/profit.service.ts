@@ -3,6 +3,7 @@ import {
   buildProfitReport,
   type EmployeeCostRow,
   type EmployeeSalesRow,
+  type ExpenseRow,
   type ProductRow,
   type ProfitReport,
   type SalesRow,
@@ -31,7 +32,7 @@ const num = (value: unknown): number => Number(value ?? 0);
  * bound as a time-zone-aware value, so comparing it directly would be shifted by the database session's time zone
  * (e.g. +7h in WIB). Converting it to a UTC `timestamp` first makes the comparison correct on any server.
  */
-const utc = (date: Date): Prisma.Sql => Prisma.sql`(${date}::timestamptz AT TIME ZONE 'UTC')`;
+export const utc = (date: Date): Prisma.Sql => Prisma.sql`(${date}::timestamptz AT TIME ZONE 'UTC')`;
 
 export async function getProfitReport(db: PrismaClient, query: ProfitQuery): Promise<ProfitReport> {
   const conditions: Prisma.Sql[] = [Prisma.sql`t."storeId" = ${query.storeId}`, Prisma.sql`t."status" = 'paid'`];
@@ -41,7 +42,16 @@ export async function getProfitReport(db: PrismaClient, query: ProfitQuery): Pro
   if (query.userId) conditions.push(Prisma.sql`t."userId" = ${query.userId}`);
   const where = Prisma.join(conditions, ' AND ');
 
-  const [salesRows, employeeSalesRows, employeeCostRows, productRows] = await Promise.all([
+  // Expenses belong to the business (or one branch), never to a cashier, so an employee filter cannot get a net profit.
+  const expenseWhere: Prisma.ExpenseWhereInput = {
+    storeId: query.storeId,
+    ...(query.from || query.to
+      ? { spentAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } }
+      : {}),
+    ...(query.branchId ? { branchId: query.branchId } : {}),
+  };
+
+  const [salesRows, employeeSalesRows, employeeCostRows, productRows, expenseGroups] = await Promise.all([
     db.$queryRaw<Raw[]>`
       SELECT COUNT(*)::int AS "transactionCount",
              COALESCE(SUM(t."subtotal"), 0) AS "grossSales",
@@ -76,6 +86,9 @@ export async function getProfitReport(db: PrismaClient, query: ProfitQuery): Pro
       GROUP BY ti."productId", ti."productName"
       ORDER BY (SUM(ti."subtotal") - SUM(ti."costPrice" * ti."quantity")) DESC
       LIMIT ${query.limit}`,
+    query.userId
+      ? Promise.resolve(null)
+      : db.expense.groupBy({ by: ['category'], where: expenseWhere, _sum: { amount: true } }),
   ]);
 
   const sales: SalesRow = {
@@ -104,5 +117,9 @@ export async function getProfitReport(db: PrismaClient, query: ProfitQuery): Pro
     cogs: num(row['cogs']),
   }));
 
-  return buildProfitReport(sales, employeeSales, employeeCosts, products);
+  const expenses: ExpenseRow[] | null = expenseGroups
+    ? expenseGroups.map(group => ({ category: group.category, total: num(group._sum.amount) }))
+    : null;
+
+  return buildProfitReport(sales, employeeSales, employeeCosts, products, expenses);
 }

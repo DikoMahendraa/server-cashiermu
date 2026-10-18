@@ -39,6 +39,11 @@ export interface ProductRow {
   cogs: number;
 }
 
+export interface ExpenseRow {
+  category: string;
+  total: number;
+}
+
 export interface ProfitReport {
   transactionCount: number;
   grossSales: number;
@@ -48,6 +53,15 @@ export interface ProfitReport {
   grossProfit: number;
   /** grossProfit / netSales × 100, or null when there were no sales. */
   marginPct: number | null;
+  /**
+   * Operating expenses in the period (rent, salaries, …); `null` when they cannot be attributed, which is the case
+   * when the report is filtered by employee (expenses belong to the business or a branch, not to a cashier).
+   */
+  expenses: { total: number; byCategory: { category: string; total: number }[] } | null;
+  /** grossProfit − expenses, or null together with `expenses`. */
+  netProfit: number | null;
+  /** netProfit / netSales × 100, or null when there were no sales or no net profit. */
+  netMarginPct: number | null;
   taxCollected: number;
   serviceChargeCollected: number;
   byEmployee: {
@@ -77,11 +91,22 @@ export function buildProfitReport(
   employeeSales: EmployeeSalesRow[],
   employeeCosts: EmployeeCostRow[],
   products: ProductRow[],
+  expenseRows: ExpenseRow[] | null = [],
 ): ProfitReport {
   const costByUser = new Map(employeeCosts.map(row => [row.userId, row.cogs]));
   const cogs = round2(employeeCosts.reduce((sum, row) => sum + row.cogs, 0));
   const netSales = round2(sales.grossSales - sales.discounts);
   const grossProfit = round2(netSales - cogs);
+
+  const expenses = expenseRows
+    ? {
+        total: round2(expenseRows.reduce((sum, row) => sum + row.total, 0)),
+        byCategory: expenseRows
+          .map(row => ({ category: row.category, total: round2(row.total) }))
+          .sort((a, b) => b.total - a.total),
+      }
+    : null;
+  const netProfit = expenses ? round2(grossProfit - expenses.total) : null;
 
   const byEmployee = employeeSales
     .map(row => {
@@ -108,6 +133,9 @@ export function buildProfitReport(
     cogs,
     grossProfit,
     marginPct: margin(grossProfit, netSales),
+    expenses,
+    netProfit,
+    netMarginPct: netProfit === null ? null : margin(netProfit, netSales),
     taxCollected: round2(sales.taxCollected),
     serviceChargeCollected: round2(sales.serviceChargeCollected),
     byEmployee,

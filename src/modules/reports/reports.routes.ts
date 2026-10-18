@@ -13,5 +13,7 @@ router.get('/top-products', reportsController.getTopProducts);
 router.get('/payment-breakdown', reportsController.getPaymentBreakdown);
 router.get('/shift-summary', reportsController.getShiftSummary);
 router.get('/profit', reportsController.getProfit);
+router.get('/employee-performance', reportsController.getEmployeePerformanceReport);
+router.get('/export/:dataset', reportsController.exportReport);
 
 export default router;

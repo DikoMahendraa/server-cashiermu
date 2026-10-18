@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../../config/database';
 import { getProfitReport } from './profit.service';
+import { getEmployeePerformance } from './employee.service';
+import { buildExport } from './export.service';
+import { EXPORT_DATASETS, type ExportDataset } from './export.report';
 
 function getQueryStr(req: Request, key: string): string | undefined {
   const val = req.query[key];
@@ -230,6 +233,56 @@ export const getProfit = async (req: Request, res: Response, next: NextFunction)
       ...rest,
     });
     res.json(report);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const periodQuerySchema = z.object({
+  from: z.string().datetime({ offset: true }).optional(),
+  to: z.string().datetime({ offset: true }).optional(),
+  branchId: z.string().uuid().optional(),
+});
+
+function parsePeriod(req: Request, res: Response) {
+  const parsed = periodQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res
+      .status(422)
+      .json({ code: 'INVALID_QUERY', message: 'Parameter laporan tidak valid', details: parsed.error.flatten() });
+    return null;
+  }
+  const { from, to, branchId } = parsed.data;
+  return {
+    storeId: req.user!.storeId,
+    from: from ? new Date(from) : undefined,
+    to: to ? new Date(to) : undefined,
+    branchId,
+  };
+}
+
+/** GET /reports/employee-performance?from=&to=&branchId= */
+export const getEmployeePerformanceReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const query = parsePeriod(req, res);
+    if (!query) return;
+    res.json(await getEmployeePerformance(prisma, query));
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /reports/export/:dataset?from=&to=&branchId= — a plain table the app saves as Excel or CSV. */
+export const exportReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const dataset = String(req.params['dataset']);
+    if (!(EXPORT_DATASETS as readonly string[]).includes(dataset)) {
+      res.status(404).json({ code: 'UNKNOWN_DATASET', message: 'Data yang diminta tidak dikenal' });
+      return;
+    }
+    const query = parsePeriod(req, res);
+    if (!query) return;
+    res.json(await buildExport(prisma, dataset as ExportDataset, query));
   } catch (err) {
     next(err);
   }

@@ -46,6 +46,7 @@ model Store {
   updatedAt                  DateTime       @updatedAt
 
   users        User[]
+  expenses     Expense[]
   branches     Branch[]
   categories   Category[]
   products     Product[]
@@ -87,6 +88,7 @@ model User {
   branch        Branch?        @relation(fields: [branchId], references: [id])
   shifts        Shift[]
   transactions  Transaction[]
+  expenses      Expense[]
   refreshTokens RefreshToken[]
 }
 
@@ -119,6 +121,7 @@ model Branch {
   users        User[]
   shifts       Shift[]
   transactions Transaction[]
+  expenses     Expense[]
 }
 
 model Category {
@@ -348,4 +351,38 @@ model PendingBill {
   updatedAt     DateTime @updatedAt
 
   store Store @relation(fields: [storeId], references: [id])
+}
+
+// Money the business spends that is not the cost of goods sold (that is TransactionItem.costPrice).
+// Buying stock to resell is NOT an expense: it is already counted as HPP when the item is sold.
+enum ExpenseCategory {
+  rent
+  salary
+  utilities
+  transport
+  promotion
+  supplies
+  other
+}
+
+model Expense {
+  id        String          @id @default(uuid())
+  storeId   String
+  // null = the whole business (e.g. salaries); set = one branch
+  branchId  String?
+  // who recorded it
+  userId    String
+  category  ExpenseCategory
+  amount    Decimal         @db.Decimal(15, 2)
+  note      String          @default("")
+  // the day the money was spent (not when it was typed in)
+  spentAt   DateTime
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  store  Store   @relation(fields: [storeId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@index([storeId, spentAt])
 }
