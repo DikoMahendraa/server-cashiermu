@@ -67,6 +67,14 @@ const paymentSchema = z.object({
   reference: z.string().nullable().optional(),
 });
 
+/** Present only when the app sends a sale that was rung up offline (see docs/12-offline-sales.md). */
+export const offlineSaleSchema = z.object({
+  /** When the sale really happened, by the device clock. */
+  createdAt: z.coerce.date(),
+  /** The temporary receipt number the device showed the customer. */
+  receiptNumber: z.string().trim().min(1).max(40),
+});
+
 export const createTransactionSchema = z.object({
   shiftId: z.string().uuid().nullable().optional(),
   branchId: z.string().uuid().optional(),
@@ -76,6 +84,7 @@ export const createTransactionSchema = z.object({
   dueAt: z.coerce.date().nullable().optional(),
   note: z.string().default(''),
   items: z.array(transactionItemSchema).min(1),
+  offline: offlineSaleSchema.optional(),
   discount: discountSchema.optional(),
   payments: z.array(paymentSchema).min(1),
   // Deprecated: cash tendered is derived from cash payment entries. Accepted for older app builds.

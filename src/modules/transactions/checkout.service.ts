@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { generateInvoiceNumber } from '../../utils/invoice';
 import { CreateTransactionDto } from './transactions.schema';
 import { newReceiptToken } from './job';
+import { assertOfflineSaleTime, changedAfterSale, priceIssues, type OfflineIssue } from './offline';
 import { CheckoutError, PricingProduct, priceCart, settlePayments } from './checkout.pricing';
 
 export interface CheckoutContext {
@@ -55,16 +56,17 @@ async function resolveShiftAndBranch(
   ctx: CheckoutContext,
   body: CreateTransactionDto,
   shiftEnabled: boolean,
-): Promise<{ shiftId: string | null; branchId: string }> {
+): Promise<{ shiftId: string | null; branchId: string; shiftClosed: boolean }> {
   if (body.shiftId) {
     const shift = await db.shift.findFirst({ where: { id: body.shiftId, storeId: ctx.storeId } });
-    if (!shift || shift.status !== 'open') {
+    // An offline sale belongs to the shift it was rung up in, even if that shift was closed before the sale arrived.
+    if (!shift || (shift.status !== 'open' && !body.offline)) {
       throw new CheckoutError(422, 'SHIFT_NOT_OPEN', 'Shift tidak ditemukan atau sudah ditutup');
     }
     if (shift.userId !== ctx.userId) {
       throw new CheckoutError(403, 'SHIFT_NOT_OWNED', 'Shift ini bukan milik Anda');
     }
-    return { shiftId: shift.id, branchId: shift.branchId };
+    return { shiftId: shift.id, branchId: shift.branchId, shiftClosed: shift.status !== 'open' };
   }
 
   if (shiftEnabled) {
@@ -86,7 +88,7 @@ async function resolveShiftAndBranch(
   if (!branch) {
     throw new CheckoutError(422, 'BRANCH_NOT_FOUND', 'Cabang tidak ditemukan atau tidak aktif');
   }
-  return { shiftId: null, branchId: branch.id };
+  return { shiftId: null, branchId: branch.id, shiftClosed: false };
 }
 
 export async function createCheckout(
@@ -108,7 +110,10 @@ export async function createCheckout(
     throw new CheckoutError(403, 'DISCOUNT_NOT_ALLOWED', 'Kasir tidak diizinkan memberi diskon');
   }
 
-  const { shiftId, branchId } = await resolveShiftAndBranch(db, ctx, body, store.shiftEnabled);
+  const offline = body.offline;
+  if (offline) assertOfflineSaleTime(offline.createdAt);
+
+  const { shiftId, branchId, shiftClosed } = await resolveShiftAndBranch(db, ctx, body, store.shiftEnabled);
 
   // The same product may appear on several lines (different variants), so dedupe before lookup.
   const productIds = [...new Set(body.items.map(i => i.productId))];
@@ -120,6 +125,7 @@ export async function createCheckout(
     throw new CheckoutError(422, 'PRODUCT_UNAVAILABLE', 'Satu atau lebih produk tidak ditemukan atau tidak aktif');
   }
 
+  const updatedAtById = new Map(products.map(p => [p.id, p.updatedAt]));
   const productMap = new Map<string, PricingProduct & { sku: string; stock: number; trackStock: boolean }>(
     products.map(p => [
       p.id,
@@ -159,6 +165,12 @@ export async function createCheckout(
       globalDiscountValue: Number(store.globalDiscountValue),
     },
     body.discount,
+    {
+      // Offline sales keep the price the customer saw, but only if the price could have changed after the sale
+      canAcceptClientPrice: offline
+        ? productId => changedAfterSale([updatedAtById.get(productId), store.updatedAt], offline.createdAt)
+        : undefined,
+    },
   );
 
   const settled = settlePayments(body.payments, cart.grandTotal);
@@ -173,7 +185,8 @@ export async function createCheckout(
   // Early, friendly check; the conditional decrement inside the DB transaction is the real guard.
   for (const [productId, qty] of qtyByProduct) {
     const product = productMap.get(productId)!;
-    if (product.stock < qty) {
+    // The customer already took the goods: an offline sale is recorded even if it makes stock negative
+    if (!offline && product.stock < qty) {
       throw new CheckoutError(422, 'INSUFFICIENT_STOCK', `Stok tidak cukup untuk produk: ${product.name}`);
     }
   }
@@ -182,9 +195,28 @@ export async function createCheckout(
     const invoiceNumber = await generateInvoiceNumber(ctx.storeId);
     try {
       const transaction = await db.$transaction(async tx => {
+        const issues: OfflineIssue[] = offline ? priceIssues(cart.priceAdjustments) : [];
+        if (offline && shiftClosed && shiftId) issues.push({ type: 'SHIFT_CLOSED', shiftId });
+
         // Sorted ids give a consistent lock order across concurrent checkouts (no deadlocks).
         for (const productId of [...qtyByProduct.keys()].sort()) {
           const qty = qtyByProduct.get(productId)!;
+          if (offline) {
+            const updated = await tx.product.update({
+              where: { id: productId },
+              data: { stock: { decrement: qty } },
+              select: { stock: true },
+            });
+            if (updated.stock < 0) {
+              issues.push({
+                type: 'STOCK_NEGATIVE',
+                productId,
+                productName: productMap.get(productId)!.name,
+                stock: updated.stock,
+              });
+            }
+            continue;
+          }
           const { count } = await tx.product.updateMany({
             where: { id: productId, storeId: ctx.storeId, isActive: true, stock: { gte: qty } },
             data: { stock: { decrement: qty } },
@@ -200,7 +232,12 @@ export async function createCheckout(
 
         if (shiftId) {
           const { count } = await tx.shift.updateMany({
-            where: { id: shiftId, storeId: ctx.storeId, userId: ctx.userId, status: 'open' },
+            where: {
+              id: shiftId,
+              storeId: ctx.storeId,
+              userId: ctx.userId,
+              ...(offline ? {} : { status: 'open' as const }),
+            },
             data: {
               cashSalesTotal: { increment: settled.cashApplied },
               digitalSalesTotal: { increment: settled.digitalApplied },
@@ -233,6 +270,14 @@ export async function createCheckout(
             grandTotal: cart.grandTotal,
             cashPaid: settled.cashTendered,
             changeAmount: settled.changeAmount,
+            ...(offline
+              ? {
+                  createdAt: offline.createdAt,
+                  syncedAt: new Date(),
+                  offlineReceiptNumber: offline.receiptNumber,
+                  offlineIssues: issues.length > 0 ? (issues as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+                }
+              : {}),
             customerName: body.customerName,
             customerPhone: body.customerPhone,
             receiptToken: newReceiptToken(),

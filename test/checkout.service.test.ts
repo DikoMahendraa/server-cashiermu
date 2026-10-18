@@ -19,6 +19,7 @@ function seed() {
   return {
     store: {
       id: 'store-1',
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
       sector: 'general',
       shiftEnabled: true,
       cashierCanDiscount: false,
@@ -34,6 +35,7 @@ function seed() {
       {
         id: 'p-1',
         storeId: 'store-1',
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
         name: 'Kopi',
         sku: 'KOPI',
         stock: 5,
@@ -158,7 +160,10 @@ function makeDb(state: State) {
       updateMany: vi.fn(async ({ where, data }: any) => {
         const s = state.shifts.find(
           x =>
-            x.id === where.id && x.storeId === where.storeId && x.userId === where.userId && x.status === where.status,
+            x.id === where.id &&
+            x.storeId === where.storeId &&
+            x.userId === where.userId &&
+            (where.status === undefined || x.status === where.status),
         );
         if (!s) return { count: 0 };
         s.cashSalesTotal += data.cashSalesTotal.increment;
@@ -177,6 +182,11 @@ function makeDb(state: State) {
       findMany: vi.fn(async ({ where }: any) =>
         state.products.filter(p => where.id.in.includes(p.id) && p.storeId === where.storeId && p.isActive),
       ),
+      update: vi.fn(async ({ where, data }: any) => {
+        const p = state.products.find(x => x.id === where.id)!;
+        p.stock -= data.stock.decrement;
+        return { stock: p.stock };
+      }),
       updateMany: vi.fn(async ({ where, data }: any) => {
         const p = state.products.find(
           x => x.id === where.id && x.storeId === where.storeId && x.isActive && x.stock >= where.stock.gte,
@@ -525,5 +535,95 @@ describe('createCheckout', () => {
     const { transaction } = await createCheckout(db, cashier, body());
     expect(transaction).toBeDefined();
     expect(generateInvoiceNumber).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('createCheckout — offline sales', () => {
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+  const offline = (createdAt: Date) => ({ createdAt, receiptNumber: 'OFF-20261018-0001' });
+
+  it('records when the sale really happened and the receipt number the device showed', async () => {
+    const createdAt = hoursAgo(2);
+    const { transaction } = await createCheckout(db, cashier, body({ offline: offline(createdAt) }), 'offline-key-1');
+    expect(transaction).toMatchObject({ createdAt, offlineReceiptNumber: 'OFF-20261018-0001' });
+    expect((transaction as any).syncedAt).toBeInstanceOf(Date);
+    expect((transaction as any).offlineIssues).toBeDefined();
+  });
+
+  it('is idempotent: the same key replays the first result', async () => {
+    const first = await createCheckout(db, cashier, body({ offline: offline(hoursAgo(1)) }), 'offline-key-2');
+    const again = await createCheckout(db, cashier, body({ offline: offline(hoursAgo(1)) }), 'offline-key-2');
+    expect(again.replayed).toBe(true);
+    expect(again.transaction.id).toBe(first.transaction.id);
+    expect(state.products[0]!.stock).toBe(4); // decremented once
+  });
+
+  it('accepts a sale that makes stock negative and flags it (online it is refused)', async () => {
+    const items = [
+      { productId: 'p-1', quantity: 8, unitPrice: 20000, selectedVariants: [{ optionId: 'o-reg' } as any], note: '' },
+    ];
+    await expectCheckoutError(
+      createCheckout(db, cashier, body({ items, payments: [{ method: 'cash', amount: 200000 }] })),
+      'INSUFFICIENT_STOCK',
+    );
+
+    const { transaction } = await createCheckout(
+      db,
+      cashier,
+      body({ items, payments: [{ method: 'cash', amount: 200000 }], offline: offline(hoursAgo(1)) }),
+    );
+    expect(state.products[0]!.stock).toBe(-3);
+    expect((transaction as any).offlineIssues).toEqual([
+      { type: 'STOCK_NEGATIVE', productId: 'p-1', productName: 'Kopi', stock: -3 },
+    ]);
+  });
+
+  it('keeps the old price when the product was edited after the sale, and flags the difference', async () => {
+    state.products[0]!.sellPrice = 25000;
+    state.products[0]!.updatedAt = new Date(); // edited a moment ago
+    const { transaction } = await createCheckout(db, cashier, body({ offline: offline(hoursAgo(1)) }));
+    expect(transaction).toMatchObject({ grandTotal: 20000, subtotal: 20000 });
+    expect((transaction as any).items[0]).toMatchObject({ unitPrice: 20000, subtotal: 20000 });
+    expect((transaction as any).offlineIssues).toEqual([
+      { type: 'PRICE_ADJUSTED', productId: 'p-1', productName: 'Kopi', clientUnitPrice: 20000, serverUnitPrice: 25000 },
+    ]);
+  });
+
+  it('still refuses a wrong price when nothing changed since the sale (no free discounts through the offline flag)', async () => {
+    state.products[0]!.sellPrice = 25000; // updatedAt stays at 2026-01-01, long before the sale
+    await expectCheckoutError(
+      createCheckout(db, cashier, body({ offline: offline(hoursAgo(1)) })),
+      'PRICE_CHANGED',
+      409,
+    );
+    expect(db.transaction.create).not.toHaveBeenCalled();
+  });
+
+  it('files the sale under its shift even if the shift was closed meanwhile, and flags it', async () => {
+    state.shifts[0]!.status = 'closed';
+    await expectCheckoutError(createCheckout(db, cashier, body()), 'SHIFT_NOT_OPEN', 422);
+    const { transaction } = await createCheckout(db, cashier, body({ offline: offline(hoursAgo(1)) }));
+    expect(transaction).toMatchObject({ shiftId: 'shift-1' });
+    expect((transaction as any).offlineIssues).toEqual([{ type: 'SHIFT_CLOSED', shiftId: 'shift-1' }]);
+    expect(state.shifts[0]!.transactionCount).toBe(1);
+  });
+
+  it('refuses sales from the future or older than 30 days', async () => {
+    await expectCheckoutError(
+      createCheckout(db, cashier, body({ offline: offline(new Date(Date.now() + 3_600_000)) })),
+      'OFFLINE_SALE_IN_FUTURE',
+      422,
+    );
+    await expectCheckoutError(
+      createCheckout(db, cashier, body({ offline: offline(hoursAgo(24 * 31)) })),
+      'OFFLINE_SALE_TOO_OLD',
+      422,
+    );
+  });
+
+  it('a normal online sale has no offline fields', async () => {
+    const { transaction } = await createCheckout(db, cashier, body());
+    expect(transaction).not.toHaveProperty('syncedAt');
+    expect(transaction).not.toHaveProperty('offlineReceiptNumber');
   });
 });

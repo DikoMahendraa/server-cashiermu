@@ -76,8 +76,18 @@ export interface PricedItem {
   itemDiscount: DiscountInput | null;
 }
 
+/** A line whose price differs from today's price, accepted because it was the price when the sale was made. */
+export interface PriceAdjustment {
+  productId: string;
+  productName: string;
+  clientUnitPrice: number;
+  serverUnitPrice: number;
+}
+
 export interface PricedCart {
   items: PricedItem[];
+  /** Only for offline sales: lines sold at the price the customer saw, not the current price. */
+  priceAdjustments: PriceAdjustment[];
   subtotal: number;
   discountAmount: number;
   taxRate: number;
@@ -172,13 +182,23 @@ export function computeUnitPrice(product: PricingProduct, variants: PricedVarian
  * if they differ from the server's, PRICE_CHANGED is thrown so the cashier can
  * refresh instead of charging a total the customer never agreed to.
  */
+export interface PriceCartOptions {
+  /**
+   * Offline sales only. When a line's price differs from the current price, the sale is still accepted at the client's
+   * price if this returns true for the product (the caller decides: the price must have changed after the sale was made).
+   */
+  canAcceptClientPrice?: (productId: string) => boolean;
+}
+
 export function priceCart(
   items: PricingItemInput[],
   products: Map<string, PricingProduct>,
   store: PricingStore,
   cartDiscount?: DiscountInput | null,
+  options: PriceCartOptions = {},
 ): PricedCart {
   const priced: PricedItem[] = [];
+  const priceAdjustments: PriceAdjustment[] = [];
   const mismatches: {
     index: number;
     productId: string;
@@ -198,15 +218,25 @@ export function priceCart(
     }
 
     const variants = resolveVariants(product, item.selectedVariants);
-    const unitPrice = computeUnitPrice(product, variants, store);
+    let unitPrice = computeUnitPrice(product, variants, store);
     if (Math.abs(unitPrice - item.unitPrice) > PRICE_TOLERANCE) {
-      mismatches.push({
-        index,
-        productId: product.id,
-        productName: product.name,
-        clientUnitPrice: item.unitPrice,
-        unitPrice: round2(unitPrice),
-      });
+      if (options.canAcceptClientPrice?.(product.id)) {
+        priceAdjustments.push({
+          productId: product.id,
+          productName: product.name,
+          clientUnitPrice: round2(item.unitPrice),
+          serverUnitPrice: round2(unitPrice),
+        });
+        unitPrice = item.unitPrice; // the customer already paid this price
+      } else {
+        mismatches.push({
+          index,
+          productId: product.id,
+          productName: product.name,
+          clientUnitPrice: item.unitPrice,
+          unitPrice: round2(unitPrice),
+        });
+      }
     }
 
     const lineBase = lineAmount(unitPrice, item.quantity);
@@ -253,6 +283,7 @@ export function priceCart(
 
   return {
     items: priced,
+    priceAdjustments,
     subtotal,
     discountAmount: round2(discountAmount),
     taxRate,

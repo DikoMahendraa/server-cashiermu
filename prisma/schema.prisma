@@ -233,42 +233,47 @@ enum ShiftStatus {
 }
 
 model Transaction {
-  id                  String            @id @default(uuid())
-  storeId             String
-  invoiceNumber       String
-  shiftId             String?
-  userId              String
-  branchId            String
-  subtotal            Decimal           @db.Decimal(15, 2)
-  discountType        String?
-  discountValue       Decimal?          @db.Decimal(15, 2)
-  discountLabel       String?
-  discountCode        String?
-  discountAmount      Decimal           @default(0) @db.Decimal(15, 2)
-  taxRate             Decimal           @default(0) @db.Decimal(5, 4)
-  taxAmount           Decimal           @default(0) @db.Decimal(15, 2)
-  serviceChargeRate   Decimal           @default(0) @db.Decimal(5, 4)
-  serviceChargeAmount Decimal           @default(0) @db.Decimal(15, 2)
-  grandTotal          Decimal           @db.Decimal(15, 2)
-  cashPaid            Decimal           @default(0) @db.Decimal(15, 2)
-  changeAmount        Decimal           @default(0) @db.Decimal(15, 2)
-  customerName        String            @default("")
-  customerPhone       String            @default("")
-  status              TransactionStatus @default(paid)
-  voidReason          String?
-  voidedAt            DateTime?
-  voidedBy            String?
-  note                String            @default("")
+  id                   String            @id @default(uuid())
+  storeId              String
+  invoiceNumber        String
+  shiftId              String?
+  userId               String
+  branchId             String
+  subtotal             Decimal           @db.Decimal(15, 2)
+  discountType         String?
+  discountValue        Decimal?          @db.Decimal(15, 2)
+  discountLabel        String?
+  discountCode         String?
+  discountAmount       Decimal           @default(0) @db.Decimal(15, 2)
+  taxRate              Decimal           @default(0) @db.Decimal(5, 4)
+  taxAmount            Decimal           @default(0) @db.Decimal(15, 2)
+  serviceChargeRate    Decimal           @default(0) @db.Decimal(5, 4)
+  serviceChargeAmount  Decimal           @default(0) @db.Decimal(15, 2)
+  grandTotal           Decimal           @db.Decimal(15, 2)
+  cashPaid             Decimal           @default(0) @db.Decimal(15, 2)
+  changeAmount         Decimal           @default(0) @db.Decimal(15, 2)
+  customerName         String            @default("")
+  customerPhone        String            @default("")
+  status               TransactionStatus @default(paid)
+  voidReason           String?
+  voidedAt             DateTime?
+  voidedBy             String?
+  note                 String            @default("")
   // Client-generated key per checkout attempt; makes POST /transactions safe to retry.
-  idempotencyKey      String?
+  idempotencyKey       String?
   // Job tracking, only for service stores (null = not a job). Payment and job status are independent.
-  jobStatus           JobStatus?
-  jobUpdatedAt        DateTime?
-  dueAt               DateTime?
+  jobStatus            JobStatus?
+  jobUpdatedAt         DateTime?
+  dueAt                DateTime?
   // Unguessable token for the public receipt page (/r/:token). Created at checkout, or lazily for old rows.
-  receiptToken        String?           @unique
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  receiptToken         String?           @unique
+  // Sales rung up while the phone was offline and sent later: when they arrived, the receipt number the device showed,
+  // and anything the owner should look at (price changed meanwhile, stock went negative, shift already closed).
+  syncedAt             DateTime?
+  offlineReceiptNumber String?
+  offlineIssues        Json?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   store    Store             @relation(fields: [storeId], references: [id])
   shift    Shift?            @relation(fields: [shiftId], references: [id])
