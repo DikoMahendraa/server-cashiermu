@@ -19,6 +19,8 @@ export const registerSchema = z
       .string()
       .length(6)
       .regex(/^\d{6}$/),
+    // Device fingerprint — limits one account per device
+    deviceId: z.string().max(200).optional(),
   })
   .refine(data => data.pin === data.pinConfirm, {
     message: 'PIN confirmation does not match',

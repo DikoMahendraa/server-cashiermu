@@ -80,6 +80,7 @@ model User {
   pinHash   String
   avatarUrl String?
   branchId  String?
+  deviceId  String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -34,11 +34,21 @@ function signRefreshToken(payload: object): string {
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { storeName, ownerName, sector, subtype, email, phone, pin } = req.body as RegisterDto;
+    const { storeName, ownerName, sector, subtype, email, phone, pin, deviceId } = req.body as RegisterDto;
 
     if (!isValidSubtype(sector, subtype)) {
       res.status(422).json({ code: 'INVALID_SUBTYPE', message: 'Jenis usaha tidak valid untuk bidang usaha ini' });
       return;
+    }
+
+    if (deviceId) {
+      const deviceExists = await prisma.user.findFirst({ where: { deviceId, isActive: true } });
+      if (deviceExists) {
+        res
+          .status(409)
+          .json({ code: 'DEVICE_LIMIT_REACHED', message: 'Perangkat ini sudah terdaftar dengan akun lain.' });
+        return;
+      }
     }
 
     const existing = await prisma.user.findFirst({ where: { OR: [{ email }, { phone }] } });
@@ -53,7 +63,16 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       const store = await tx.store.create({ data: { name: storeName, phone, email, sector, subtype } });
       const branch = await tx.branch.create({ data: { name: 'Cabang Utama', storeId: store.id } });
       const user = await tx.user.create({
-        data: { name: ownerName, email, phone, role: 'owner', pinHash, branchId: branch.id, storeId: store.id },
+        data: {
+          name: ownerName,
+          email,
+          phone,
+          role: 'owner',
+          pinHash,
+          branchId: branch.id,
+          storeId: store.id,
+          deviceId: deviceId ?? null,
+        },
       });
       await tx.category.createMany({
         // Starter categories for the chosen sector; the owner can rename, add or delete them afterwards
