@@ -28,7 +28,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - '127.0.0.1:5432:5432' # localhost-only: accessible via SSH tunnel, not from the internet
+      - '127.0.0.1:5433:5432' # localhost-only: accessible via SSH tunnel, not from the internet
     networks: [internal]
 
   api:
