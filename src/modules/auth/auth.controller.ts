@@ -8,6 +8,7 @@ import { RegisterDto, CheckCredentialDto, LoginDto, RefreshDto } from './auth.sc
 import { getSubtypeConfig, isValidSubtype } from '../sectors/sector.config';
 import { loginTotal } from '../../observability/metrics';
 import { LoginGuard } from './login-guard';
+import { getImageUrl } from '../../utils/storage.util';
 
 const lockoutMs = env.LOGIN_LOCKOUT_MINUTES * 60 * 1000;
 // Two independent locks: per client address (stops one device guessing many accounts) and per account (stops guessing
@@ -201,7 +202,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         avatarUrl: user.avatarUrl,
         storeId: user.storeId,
       },
-      store,
+      store: store ? { ...store, logoUrl: getImageUrl(store.logoUrl) } : null,
       requireShift,
       activeShift,
       accessToken,
@@ -345,7 +346,12 @@ export const me = async (req: Request, res: Response, next: NextFunction): Promi
       select: { id: true, branchId: true, type: true, startedAt: true, openingBalance: true },
     });
 
-    res.json({ user, store, requireShift, activeShift });
+    res.json({
+      user,
+      store: store ? { ...store, logoUrl: getImageUrl(store.logoUrl) } : null,
+      requireShift,
+      activeShift,
+    });
   } catch (err) {
     next(err);
   }

@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger';
 import { UpdateStoreDto, DeleteAccountDto } from './store.schema';
 import { deleteStoreData } from './store.delete';
 import { isValidSubtype } from '../sectors/sector.config';
+import { getImageUrl } from '../../utils/storage.util';
 
 export const getStore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -13,7 +14,7 @@ export const getStore = async (req: Request, res: Response, next: NextFunction):
       res.status(404).json({ message: 'Store not found' });
       return;
     }
-    res.json(store);
+    res.json({ ...store, logoUrl: getImageUrl(store.logoUrl) });
   } catch (err) {
     next(err);
   }
@@ -45,7 +46,7 @@ export const updateStore = async (req: Request, res: Response, next: NextFunctio
       where: { id: req.user!.storeId },
       data: body,
     });
-    res.json(store);
+    res.json({ ...store, logoUrl: getImageUrl(store.logoUrl) });
   } catch (err) {
     next(err);
   }

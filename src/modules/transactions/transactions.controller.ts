@@ -7,6 +7,7 @@ import { JOB_STATUSES, OPEN_JOB_STATUSES, newReceiptToken, receiptUrl } from './
 import { createCheckout } from './checkout.service';
 import { CheckoutError } from './checkout.pricing';
 import { checkoutReplays, checkoutTotal, offlineIssuesTotal } from '../../observability/metrics';
+import { getImageUrl } from '../../utils/storage.util';
 
 const channelOf = (req: Request): 'offline' | 'online' => (req.body?.offline ? 'offline' : 'online');
 
@@ -142,7 +143,13 @@ export const getTransaction = async (req: Request, res: Response, next: NextFunc
       res.status(404).json({ message: 'Transaction not found' });
       return;
     }
-    res.json(transaction);
+    res.json({
+      ...transaction,
+      items: transaction.items.map(item => ({
+        ...item,
+        product: item.product ? { ...item.product, imageUrl: getImageUrl(item.product.imageUrl) } : null,
+      })),
+    });
   } catch (err) {
     next(err);
   }

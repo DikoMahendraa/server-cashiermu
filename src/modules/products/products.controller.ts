@@ -5,6 +5,7 @@ import { AppError } from '../../utils/app-error';
 import { getSubtypeConfig } from '../sectors/sector.config';
 import { resolveTrackStockDefault, validateAttributes } from '../sectors/sector.validation';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, type VariantGroupUpdateInput } from './products.schema';
+import { getImageUrl } from '../../utils/storage.util';
 
 // Untracked products (services, unlimited items) have no stock level, so they are never "low" or "empty".
 function stockStatus(product: { stock: number; minStock: number; trackStock: boolean }): string {
@@ -147,7 +148,7 @@ export const listProducts = async (req: Request, res: Response, next: NextFuncti
       orderBy: { name: 'asc' },
     });
 
-    const enriched = products.map(p => ({ ...p, stockStatus: stockStatus(p) }));
+    const enriched = products.map(p => ({ ...p, imageUrl: getImageUrl(p.imageUrl), stockStatus: stockStatus(p) }));
     const filtered = stockFilter ? enriched.filter(p => p.stockStatus === stockFilter) : enriched;
 
     res.json(filtered);
@@ -198,7 +199,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       include: { ...VARIANTS_INCLUDE, category: true },
     });
 
-    res.status(201).json(product);
+    res.status(201).json({ ...product, imageUrl: getImageUrl(product.imageUrl) });
   } catch (err) {
     if (!sendIfDuplicate(err, res)) next(err);
   }
@@ -218,7 +219,7 @@ export const getProduct = async (req: Request, res: Response, next: NextFunction
       res.status(404).json({ message: 'Product not found' });
       return;
     }
-    res.json({ ...product, stockStatus: stockStatus(product) });
+    res.json({ ...product, imageUrl: getImageUrl(product.imageUrl), stockStatus: stockStatus(product) });
   } catch (err) {
     next(err);
   }
@@ -255,7 +256,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       });
     });
 
-    res.json({ ...product, stockStatus: stockStatus(product) });
+    res.json({ ...product, imageUrl: getImageUrl(product.imageUrl), stockStatus: stockStatus(product) });
   } catch (err) {
     if (!sendIfDuplicate(err, res)) next(err);
   }
