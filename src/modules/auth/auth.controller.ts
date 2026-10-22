@@ -218,7 +218,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         phone: user.phone,
         role: user.role,
         branchId: user.branchId,
-        avatarUrl: user.avatarUrl,
+        avatarUrl: getImageUrl(user.avatarUrl),
         storeId: user.storeId,
       },
       store: store ? { ...store, logoUrl: getImageUrl(store.logoUrl) } : null,

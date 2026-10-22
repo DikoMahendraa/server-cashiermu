@@ -8,5 +8,8 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME ?? '';
 export function getImageUrl(keyOrUrl: string | null | undefined): string | null {
   if (!keyOrUrl) return null;
   if (keyOrUrl.startsWith('http')) return keyOrUrl;
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${keyOrUrl}`;
+  // Append .jpg if no extension — Cloudinary public_ids don't carry the format suffix
+  // but React Native requires an explicit extension to render images correctly.
+  const key = /\.(jpg|jpeg|png|webp|gif)$/i.test(keyOrUrl) ? keyOrUrl : `${keyOrUrl}.jpg`;
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${key}`;
 }

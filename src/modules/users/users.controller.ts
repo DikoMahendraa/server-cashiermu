@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import prisma from '../../config/database';
 import { CreateUserDto, UpdateUserDto, ChangePinDto } from './users.schema';
+import { getImageUrl } from '../../utils/storage.util';
 
 export const listUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -21,7 +22,7 @@ export const listUsers = async (req: Request, res: Response, next: NextFunction)
       },
       orderBy: { createdAt: 'asc' },
     });
-    res.json(users);
+    res.json(users.map(u => ({ ...u, avatarUrl: getImageUrl(u.avatarUrl) })));
   } catch (err) {
     next(err);
   }
@@ -62,7 +63,7 @@ export const getUser = async (req: Request, res: Response, next: NextFunction): 
       res.status(404).json({ message: 'User not found' });
       return;
     }
-    res.json(user);
+    res.json({ ...user, avatarUrl: getImageUrl(user.avatarUrl) });
   } catch (err) {
     next(err);
   }
